@@ -79,25 +79,26 @@ def removeStringLiterals(program: List[str], hasQuoteOnPreviousLine: bool = Fals
                 print(f"\033[91m"  # red color
                       f"Syntax warning: unterminated string at end of file, '\"' inserted"
                       f"\033[0m")  # standard color
-                return ["$str$"], [head[:-1] + '"']
+                return ["$str$"], [head + '"']
             else:
                 prog, strings = removeStringLiterals(tail, True)
 
-                return ["$str$"] + prog, [head[:-1]] + strings
+                return ["$str$"] + prog, [head] + strings
     else:
         if head.count('"') > 0:
             if head.count('"') > 1:
-                # replace first quote, to make it possible to detect both
-                head: str = head.replace('"', '{', 1)
                 # replace everything in the quotes
                 prog, strings = removeStringLiterals(tail, False)
 
-                literal: str = '"' + head[head.index('{')+1:head.index('"') + 1]
-                head: str = head[:head.index('{')] + "$str$" + head[head.index('"') + 1:]
+                start = head.index('"')
+                end = head.index('"', start+1)
+
+                literal: str = head[start:end + 1]
+                head: str = head[:start] + "$str$" + head[end + 1:]
                 return [head] + prog, [literal] + strings
             else:
                 # replace everything after "
-                literal: str = head[head.index('"'):-1]
+                literal: str = head[head.index('"'):]
                 head: str = head[:head.index('"')] + "$str$"
 
                 if len(tail) == 0:

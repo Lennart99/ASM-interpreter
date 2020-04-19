@@ -11,3 +11,4 @@ print(loadedProgram)
 print(labelParser.getGlobalLabels(loadedProgram))
 
 labels = labelParser.getLabels(loadedProgram)
+print(labels)
