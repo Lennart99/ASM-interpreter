@@ -1,4 +1,6 @@
-from typing import List
+from typing import List, Tuple
+
+from high_order import zipWith
 
 
 # formatLine:: String -> String
@@ -6,7 +8,6 @@ def formatLine(line: str) -> str:
     if len(line) == 0:
         return line
 
-    # TODO ignore string literals
     line = line.replace("\n", "")
 
     if line.count("//") > 0:
@@ -41,7 +42,6 @@ def removeMultiLineComments(program: List[str], hasCommentOnPreviousLine: bool =
 
     head, *tail = program
 
-    # TODO ignore string literals
     if hasCommentOnPreviousLine:
         if head.count("*/") > 0:
             return removeMultiLineComments([head[head.index("*/")+2:]] + tail, False)
@@ -57,6 +57,69 @@ def removeMultiLineComments(program: List[str], hasCommentOnPreviousLine: bool =
             return [head] + removeMultiLineComments(tail, False)
 
 
+# removeStringLiterals:: bool -> [String] -> [[String], [String]]
+def removeStringLiterals(program: List[str], hasQuoteOnPreviousLine: bool = False) -> Tuple[List[str], List[str]]:
+    # TODO permit multiple strings on same line
+    if len(program) == 0:
+        return [], []
+
+    head, *tail = program
+
+    if hasQuoteOnPreviousLine:
+        if head.count('"') > 0:
+            # replace everything before "
+            prog, strings = removeStringLiterals(tail, False)
+
+            literal: str = head[:head.index('"')+1]
+            head: str = "$str$" + head[head.index('"')+1:]
+            return [head] + prog, [literal] + strings
+        else:
+            # replace whole line
+            if len(tail) == 0:
+                print(f"\033[91m"  # red color
+                      f"Syntax warning: unterminated string at end of file, '\"' inserted"
+                      f"\033[0m")  # standard color
+                return ["$str$"], [head[:-1] + '"']
+            else:
+                prog, strings = removeStringLiterals(tail, True)
+
+                return ["$str$"] + prog, [head[:-1]] + strings
+    else:
+        if head.count('"') > 0:
+            if head.count('"') > 1:
+                # replace first quote, to make it possible to detect both
+                head: str = head.replace('"', '{', 1)
+                # replace everything in the quotes
+                prog, strings = removeStringLiterals(tail, False)
+
+                literal: str = '"' + head[head.index('{')+1:head.index('"') + 1]
+                head: str = head[:head.index('{')] + "$str$" + head[head.index('"') + 1:]
+                return [head] + prog, [literal] + strings
+            else:
+                # replace everything after "
+                literal: str = head[head.index('"'):-1]
+                head: str = head[:head.index('"')] + "$str$"
+
+                if len(tail) == 0:
+                    print(f"\033[91m"  # red color
+                          f"Syntax warning: unterminated string at end of file, '\"' inserted"
+                          f"\033[0m")  # standard color
+                    return [head], [literal + '"']
+                else:
+                    prog, strings = removeStringLiterals(tail, True)
+
+                    return [head] + prog, [literal] + strings
+        else:
+            # do nothing
+            prog, strings = removeStringLiterals(tail, False)
+            return [head] + prog, [""] + strings
+
+
+# removeStringLiterals:: [String] -> [String] -> [String]
+def replaceStringLiterals(program: List[str], literals: List[str]) -> List[str]:
+    return zipWith(lambda prog, lit: prog.replace("$str$", lit), program, literals)
+
+
 # loadFile:: String -> [String]
 # Uses File I/O
 def loadFile(program_name: str) -> List[str]:
@@ -64,7 +127,11 @@ def loadFile(program_name: str) -> List[str]:
 
     file_contents: List[str] = file.readlines()
 
+    file_contents, strings = removeStringLiterals(file_contents)
+
     file_contents: List[str] = list(map(formatLine, file_contents))
     file_contents: List[str] = removeMultiLineComments(file_contents)
+
+    file_contents: List[str] = replaceStringLiterals(file_contents, strings)
 
     return file_contents

@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List
 
 import fileLoader
 import labelParser
@@ -10,7 +10,4 @@ print(loadedProgram)
 
 print(labelParser.getGlobalLabels(loadedProgram))
 
-enum: List[Tuple[int, str]] = list(enumerate(loadedProgram))
-labels = labelParser.getLabels(enum)
-
-print(labels)
+labels = labelParser.getLabels(loadedProgram)

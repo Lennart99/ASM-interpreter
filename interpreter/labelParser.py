@@ -23,7 +23,7 @@ class Label:
         # name of the label
         self.name: str = name
         # The index to the line where the interpreter needs to start
-        self.line: str = line
+        self.line: int = line
 
     def __str__(self):
         return f"Label{{{self.name}, {self.line}}}"
@@ -33,32 +33,30 @@ class Label:
 
 
 # getLabelFromstring:: [Label] -> [int, String] -> [label]
-def getLabelFromstring(foldLabels: List[Label], programLine: Tuple[int, str]) -> List[Label]:
+def getLabelsFromstring(foldLabels: List[Label], programLine: Tuple[int, str]) -> List[Label]:
     idx, code = programLine
 
-    if code.count(":") > 0:
-        if code.count(":") > 1:
-            # TODO throw error
-            print(f"\033[91m"  # red color
-                  f"Syntax error: A colon (:) is not supported in an assembly statement"
-                  f"\033[0m")  # standard color
-        label: str = code[0:programLine[1].index(":")]
-        if label.count(" ") > 0:
-            # TODO throw error
-            print(f"\033[91m"  # red color
-                  f"Syntax error: A label should not contain whitespaces"
-                  f"\033[0m")  # standard color
-            return foldLabels
-        if len(code[code.index(":") + 1:]) > 0:
-            result = Label(label, idx)
-        else:
-            result = Label(label, idx + 1)
+    splitCode: List[str] = code.split(":")
 
-        return [result] + foldLabels
+    if len(splitCode) > 1:
+        for label in splitCode[:-1]:
+            if label.count(" ") > 0:
+                # TODO throw error
+                fileName = "filename"
+                print(f"\033[91m"  # red color
+                      f"File \"{fileName}\", line {idx+1}\n"
+                      f"\tSyntax error: A label should not contain whitespaces"
+                      f"\033[0m")  # standard color
+        if len(splitCode[-1]) > 0:
+            # data on same line as label
+            return [Label(label, idx) for label in splitCode[:-1]] + foldLabels
+        else:
+            return [Label(label, idx + 1) for label in splitCode[:-1]] + foldLabels
     else:
         return foldLabels
 
 
-# getLabels:: [[int, String]] -> [label]
-def getLabels(program: List[Tuple[int, str]]) -> List[Label]:
-    return foldL(getLabelFromstring, [], program)
+# getLabels:: [String] -> [label]
+def getLabels(program: List[str]) -> List[Label]:
+    programEnum: List[Tuple[int, str]] = list(enumerate(program))
+    return foldL(getLabelsFromstring, [], programEnum)
