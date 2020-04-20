@@ -11,20 +11,23 @@ def formatLine(line: str) -> str:
     if len(line) == 0:
         return line
 
+    # Remove newlines
     line = line.replace("\n", "")
 
+    # Remove single-line comments
     if line.count("//") > 0:
         line = line[0: line.index("//")]
-
     if line.count(";") > 0:
         line = line[0: line.index(";")]
 
+    # Replace tabs with spaces
     line = line.replace("\t", " ")
 
-    # remove multiple spaces in a row
+    # Remove multiple spaces in a row
     while line.count("  ") > 0:
         line = line.replace("  ", " ")
 
+    # Remove spaces at start and end
     if line.startswith(" "):
         line = line[1: -1]
     if line.endswith(" "):
@@ -46,17 +49,24 @@ def removeMultiLineComments(program: List[str], hasCommentOnPreviousLine: bool =
     head, *tail = program
 
     if hasCommentOnPreviousLine:
+        # The previous line ended with a multi line comment
         if head.count("*/") > 0:
+            # */ detected, remove everything until */ (inclusive)
             return removeMultiLineComments([head[head.index("*/")+2:]] + tail, False)
         else:
+            # No */ detected, remove whole line, but keep a empty string to keep track of the line numbers
             return [""] + removeMultiLineComments(tail, True)
     else:
         if head.count("/*") > 0:
+            # /* detected, multi line comment started
             if head.count("*/") > 0:
+                # */ detected, remove everything from /* until */ (inclusive)
                 return removeMultiLineComments([head[0: head.index("/*")] + head[head.index("*/") + 2:]] + tail, False)
             else:
+                # No */ detected, remove everything from /* (inclusive)
                 return [head[0: head.index("/*")]] + removeMultiLineComments(tail, True)
         else:
+            # No comment, do nothing
             return [head] + removeMultiLineComments(tail, False)
 
 
@@ -69,15 +79,16 @@ def removeStringLiterals(program: List[str], hasQuoteOnPreviousLine: bool = Fals
     head, *tail = program
 
     if hasQuoteOnPreviousLine:
+        # The previous line ended with a string literal
         if head.count('"') > 0:
-            # replace everything before "
+            # Detected second quote replace everything before " (inclusive)
             prog, strings = removeStringLiterals(tail, False)
 
             literal: str = head[:head.index('"')+1]
             head: str = "$str$" + head[head.index('"')+1:]
             return [head] + prog, [literal] + strings
         else:
-            # replace whole line
+            # No second quote detected, replace the whole line
             if len(tail) == 0:
                 print(f"\033[31m"  # red color
                       f"Syntax warning: Unterminated string at end of file, '\"' inserted"
@@ -89,8 +100,9 @@ def removeStringLiterals(program: List[str], hasQuoteOnPreviousLine: bool = Fals
                 return ["$str$"] + prog, [head] + strings
     else:
         if head.count('"') > 0:
+            # Quote detected, string literal started
             if head.count('"') > 1:
-                # replace everything in the quotes
+                # Detected second quote replace everything between quotes (inclusive)
                 prog, strings = removeStringLiterals(tail, False)
 
                 start = head.index('"')
@@ -100,7 +112,7 @@ def removeStringLiterals(program: List[str], hasQuoteOnPreviousLine: bool = Fals
                 head: str = head[:start] + "$str$" + head[end + 1:]
                 return [head] + prog, [literal] + strings
             else:
-                # replace everything after "
+                # No second quote detected, replace everything after " (inclusive)
                 literal: str = head[head.index('"'):]
                 head: str = head[:head.index('"')] + "$str$"
 
@@ -114,7 +126,7 @@ def removeStringLiterals(program: List[str], hasQuoteOnPreviousLine: bool = Fals
 
                     return [head] + prog, [literal] + strings
         else:
-            # do nothing
+            # No string literal, do nothing
             prog, strings = removeStringLiterals(tail, False)
             return [head] + prog, [""] + strings
 
@@ -126,7 +138,7 @@ def replaceStringLiterals(program: List[str], literals: List[str]) -> List[str]:
 
 class LoadedFile:
     def __init__(self, name: str, contents: List[str], globalLabels: List[str], labels: List[Label]):
-        # name of the label
+        # The name of the label
         self.fileName: str = name
         # The contents of the file
         self.contents: List[str] = contents
@@ -154,15 +166,16 @@ def loadFile(fileName: str) -> LoadedFile:
     file_contents: List[str] = file.readlines()
 
     try:
+        # Remove string literals to prevent to change the string literals
         file_contents, strings = removeStringLiterals(file_contents)
-
+        # Remove comments and whitespaces
         file_contents: List[str] = list(map(formatLine, file_contents))
         file_contents: List[str] = removeMultiLineComments(file_contents)
-
+        # Put the string literals back
         file_contents: List[str] = replaceStringLiterals(file_contents, strings)
 
         labels: List[Label] = labelParser.getLabels(file_contents)
-
+        # Make sure there are no duplicate labels
         for label in labels:
             if labels.count(label) > 1:
                 print(f"\033[31m"  # red color
@@ -170,8 +183,9 @@ def loadFile(fileName: str) -> LoadedFile:
                       f"\tSyntax error: Label is declared multiple times in the same file"
                       f"\033[0m")  # standard color
                 exit(-1)
+        
         globalLabels: List[str] = labelParser.getGlobalLabels(file_contents, labels)
-
+        # Create a LoadedFile object
         loadedFile = LoadedFile(fileName, file_contents, globalLabels, labels)
 
         return loadedFile

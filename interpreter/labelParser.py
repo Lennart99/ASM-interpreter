@@ -11,7 +11,7 @@ regex = re.compile(r"^[^\d\W]\w*\Z", re.IGNORECASE)
 
 class Label:
     def __init__(self, name: str, line: int):
-        # name of the label
+        # The name of the label
         self.name: str = name
         # The index to the line where the interpreter needs to start
         self.line: int = line
@@ -22,24 +22,27 @@ class Label:
     def __repr__(self):
         return self.__str__()
 
+    # self == other
     def __eq__(self, other):
         if isinstance(other, self.__class__):
             return self.name == other.name
         else:
             return False
 
+    # self != other
     def __ne__(self, other):
         return not self.__eq__(other)
 
 
 # validateLabel:: String -> int -> String
-# validate a label, idx is used to generate a meaningful error message if the label is invalid
+# Validate a label, idx is used to generate a meaningful error message if the label is invalid
 def validateLabel(text: str, idx: int) -> str:
+    # Remove spaces at start and end
     if text.startswith(" "):
         text = text[1:]
     if text.endswith(" "):
         text = text[0: -1]
-
+    # Validate the labels only contains alphanumerical characters and underscores and does not start with a number
     if regex.fullmatch(text) is None:
         raise InvalidInputException(f"\033[31m"  # red color
                                     f"File \"$fileName$\", line {idx + 1}\n"
@@ -51,16 +54,19 @@ def validateLabel(text: str, idx: int) -> str:
 
 
 # getLabelFromstring:: [Label] -> [int, String] -> [label]
+# Get the labels from the current line of the program and add these labels to the list (foldLabels)
 def getLabelsFromstring(foldLabels: List[Label], programLine: Tuple[int, str]) -> List[Label]:
     idx, code = programLine
 
     splitCode: List[str] = code.split(":")
 
     if len(splitCode) > 1:
+        # There is a label on this line
         if len(splitCode[-1]) > 0:
-            # data on same line as label
+            # First data is on the same line as the label
             return [Label(validateLabel(label, idx), idx) for label in splitCode[:-1]] + foldLabels
         else:
+            # First data is on the next line
             return [Label(validateLabel(label, idx), idx + 1) for label in splitCode[:-1]] + foldLabels
     else:
         return foldLabels
@@ -73,8 +79,8 @@ def getLabels(program: List[str]) -> List[Label]:
 
 
 # validateGlobalLabel:: String -> [String] -> int -> String
-# validate a label, idx is used to generate a meaningful error message if the label is invalid
-# labelNames is used to make sure the label exists in the loaded file
+# Validate a label, idx is used to generate a meaningful error message if the label is invalid
+# LabelNames is used to make sure the label exists in the loaded file
 def validateGlobalLabel(text: str, labelNames: List[str], idx: int) -> str:
     text: str = validateLabel(text, idx)
     if text not in labelNames:
@@ -87,13 +93,13 @@ def validateGlobalLabel(text: str, labelNames: List[str], idx: int) -> str:
 
 
 # getGlobalLabelsFromString:: [String] -> [int, String] -> [String] -> [String]
+# Get the global labels from the current line of the program and add these labels to the list (foldLabels)
 def getGlobalLabelsFromString(foldLabels: List[str], programLine: Tuple[int, str], labelNames: List[str]) -> List[str]:
     idx, code = programLine
 
     if code.startswith(".global"):
         code: str = code.replace(".global", "")
-        if len(code.split(",")) >= 1:
-            return [validateGlobalLabel(label, labelNames, idx) for label in code.split(",")] + foldLabels
+        return [validateGlobalLabel(label, labelNames, idx) for label in code.split(",")] + foldLabels
 
     return foldLabels
 
