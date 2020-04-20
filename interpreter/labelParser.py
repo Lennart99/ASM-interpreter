@@ -1,21 +1,46 @@
 from typing import List, Tuple
 from high_order import foldL
 
+import re
 
-# getLabelFromstring:: [String] -> String -> [String]
-def getGlobalLabelFromString(foldLabels: List[str], programLine: str) -> List[str]:
-    if programLine.startswith(".global"):
-        programLine: str = programLine.replace(".global", "").replace(" ", "")
-        if len(programLine.split(",")) >= 1:
-            result = programLine.split(",")
-            return result + foldLabels
+# ^[^\d\W] matches a character that is a letter or a underscore at the start of the string
+# \w*\Z matches a letter, a number or a underscore at the rest of the string
+regex = re.compile(r"^[^\d\W]\w*\Z", re.IGNORECASE)
+
+
+def validateLabel(text: str, idx: int):
+    if text.startswith(" "):
+        text = text[1:]
+    if text.endswith(" "):
+        text = text[0: -1]
+
+    if regex.fullmatch(text) is None:
+        # TODO throw error
+        print(f"\033[91m"  # red color
+              f"File \"$fileName$\", line {idx + 1}\n"
+              f"\tSyntax error, invalid label: '{text}'\n"
+              f"\tA label should only contain alphanumerical characters and underscores "
+              f"and should not start with a number"
+              f"\033[0m")  # standard color
+    return text
+
+
+# getGlobalLabelsFromString:: [String] -> [int, String] -> [String]
+def getGlobalLabelsFromString(foldLabels: List[str], programLine: Tuple[int, str]) -> List[str]:
+    idx, code = programLine
+
+    if code.startswith(".global"):
+        code: str = code.replace(".global", "")
+        if len(code.split(",")) >= 1:
+            return [validateLabel(label, idx) for label in code.split(",")] + foldLabels
 
     return foldLabels
 
 
 # getGlobalLabels:: [String] -> [String]
 def getGlobalLabels(program: List[str]) -> List[str]:
-    return foldL(getGlobalLabelFromString, [], program)
+    programEnum: List[Tuple[int, str]] = list(enumerate(program))
+    return foldL(getGlobalLabelsFromString, [], programEnum)
 
 
 class Label:
@@ -39,19 +64,11 @@ def getLabelsFromstring(foldLabels: List[Label], programLine: Tuple[int, str]) -
     splitCode: List[str] = code.split(":")
 
     if len(splitCode) > 1:
-        for label in splitCode[:-1]:
-            if label.count(" ") > 0:
-                # TODO throw error
-                fileName = "filename"
-                print(f"\033[91m"  # red color
-                      f"File \"{fileName}\", line {idx+1}\n"
-                      f"\tSyntax error: A label should not contain whitespaces"
-                      f"\033[0m")  # standard color
         if len(splitCode[-1]) > 0:
             # data on same line as label
-            return [Label(label, idx) for label in splitCode[:-1]] + foldLabels
+            return [Label(validateLabel(label, idx), idx) for label in splitCode[:-1]] + foldLabels
         else:
-            return [Label(label, idx + 1) for label in splitCode[:-1]] + foldLabels
+            return [Label(validateLabel(label, idx), idx + 1) for label in splitCode[:-1]] + foldLabels
     else:
         return foldLabels
 
