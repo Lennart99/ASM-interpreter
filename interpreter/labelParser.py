@@ -1,7 +1,8 @@
 from typing import List, Tuple
-from high_order import foldL
-
 import re
+
+from high_order import foldL
+from invalidInputException import InvalidInputException
 
 # ^[^\d\W] matches a character that is a letter or a underscore at the start of the string
 # \w*\Z matches a letter, a number or a underscore at the rest of the string
@@ -15,13 +16,12 @@ def validateLabel(text: str, idx: int):
         text = text[0: -1]
 
     if regex.fullmatch(text) is None:
-        # TODO throw error
-        print(f"\033[91m"  # red color
-              f"File \"$fileName$\", line {idx + 1}\n"
-              f"\tSyntax error, invalid label: '{text}'\n"
-              f"\tA label should only contain alphanumerical characters and underscores "
-              f"and should not start with a number"
-              f"\033[0m")  # standard color
+        raise InvalidInputException(f"\033[31m"  # red color
+                                    f"File \"$fileName$\", line {idx + 1}\n"
+                                    f"\tSyntax error, invalid label: '{text}'\n"
+                                    f"\tA label should only contain alphanumerical characters and underscores "
+                                    f"and should not start with a number"
+                                    f"\033[0m")  # standard color
     return text
 
 

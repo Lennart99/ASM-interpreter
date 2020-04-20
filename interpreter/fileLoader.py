@@ -1,6 +1,7 @@
 from typing import List, Tuple
 
 from high_order import zipWith
+from invalidInputException import InvalidInputException
 
 
 # formatLine:: String -> String
@@ -34,10 +35,10 @@ def formatLine(line: str) -> str:
 def removeMultiLineComments(program: List[str], hasCommentOnPreviousLine: bool = False) -> List[str]:
     if len(program) == 0:
         if hasCommentOnPreviousLine:
-            # TODO throw error
-            print(f"\033[91m"  # red color
-                  f"Syntax error: multi-line comment opened, but not closed (*/ is missing)"
-                  f"\033[0m")  # standard color
+            raise InvalidInputException(f"\033[31m"  # red color
+                                        f"File \"$fileName$\"\n"
+                                        f"\tSyntax error: multi-line comment opened, but not closed (*/ is missing)"
+                                        f"\033[0m")  # standard color
         return []
 
     head, *tail = program
@@ -76,7 +77,7 @@ def removeStringLiterals(program: List[str], hasQuoteOnPreviousLine: bool = Fals
         else:
             # replace whole line
             if len(tail) == 0:
-                print(f"\033[91m"  # red color
+                print(f"\033[31m"  # red color
                       f"Syntax warning: unterminated string at end of file, '\"' inserted"
                       f"\033[0m")  # standard color
                 return ["$str$"], [head + '"']
@@ -102,7 +103,7 @@ def removeStringLiterals(program: List[str], hasQuoteOnPreviousLine: bool = Fals
                 head: str = head[:head.index('"')] + "$str$"
 
                 if len(tail) == 0:
-                    print(f"\033[91m"  # red color
+                    print(f"\033[31m"  # red color
                           f"Syntax warning: unterminated string at end of file, '\"' inserted"
                           f"\033[0m")  # standard color
                     return [head], [literal + '"']
@@ -128,11 +129,14 @@ def loadFile(program_name: str) -> List[str]:
 
     file_contents: List[str] = file.readlines()
 
-    file_contents, strings = removeStringLiterals(file_contents)
+    try:
+        file_contents, strings = removeStringLiterals(file_contents)
 
-    file_contents: List[str] = list(map(formatLine, file_contents))
-    file_contents: List[str] = removeMultiLineComments(file_contents)
+        file_contents: List[str] = list(map(formatLine, file_contents))
+        file_contents: List[str] = removeMultiLineComments(file_contents)
 
-    file_contents: List[str] = replaceStringLiterals(file_contents, strings)
-
+        file_contents: List[str] = replaceStringLiterals(file_contents, strings)
+    except InvalidInputException as e:
+        print(e.msg.replace("$fileName$", "program.asm"))
+        exit(-1)
     return file_contents
