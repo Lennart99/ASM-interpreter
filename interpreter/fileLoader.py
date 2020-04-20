@@ -2,6 +2,8 @@ from typing import List, Tuple
 
 from high_order import zipWith
 from invalidInputException import InvalidInputException
+from labelParser import Label
+import labelParser
 
 
 # formatLine:: String -> String
@@ -122,10 +124,32 @@ def replaceStringLiterals(program: List[str], literals: List[str]) -> List[str]:
     return zipWith(lambda prog, lit: prog.replace("$str$", lit), program, literals)
 
 
+class LoadedFile:
+    def __init__(self, name: str, contents: List[str], globalLabels: List[str], labels: List[Label]):
+        # name of the label
+        self.fileName: str = name
+        # The contents of the file
+        self.contents: List[str] = contents
+        # The global labels
+        self.globalLabels: List[str] = globalLabels
+        # The labels with the indices where the first instruction can be found
+        self.labels: List[Label] = labels
+
+    def __str__(self):
+        return (f"LoadedFile {{\n" 
+                f"\tfileName: {self.fileName},\n" 
+                f"\tcontents: {self.contents},\n" 
+                f"\tglobalLabels: {self.globalLabels},\n" 
+                f"\tlabels: {self.labels}\n}}")
+
+    def __repr__(self):
+        return self.__str__()
+
+
 # loadFile:: String -> [String]
 # Uses File I/O
-def loadFile(program_name: str) -> List[str]:
-    file = open(program_name, "r")
+def loadFile(fileName: str) -> LoadedFile:
+    file = open(fileName, "r")
 
     file_contents: List[str] = file.readlines()
 
@@ -136,7 +160,14 @@ def loadFile(program_name: str) -> List[str]:
         file_contents: List[str] = removeMultiLineComments(file_contents)
 
         file_contents: List[str] = replaceStringLiterals(file_contents, strings)
+
+        labels: List[Label] = labelParser.getLabels(file_contents)
+
+        globalLabels: List[str] = labelParser.getGlobalLabels(file_contents, labels)
+
+        loadedFile = LoadedFile(fileName, file_contents, globalLabels, labels)
+
+        return loadedFile
     except InvalidInputException as e:
         print(e.msg.replace("$fileName$", "program.asm"))
         exit(-1)
-    return file_contents
