@@ -39,7 +39,7 @@ def removeMultiLineComments(program: List[str], hasCommentOnPreviousLine: bool =
         if hasCommentOnPreviousLine:
             raise InvalidInputException(f"\033[31m"  # red color
                                         f"File \"$fileName$\"\n"
-                                        f"\tSyntax error: multi-line comment opened, but not closed (*/ is missing)"
+                                        f"\tSyntax error: Multi-line comment opened, but not closed (*/ is missing)"
                                         f"\033[0m")  # standard color
         return []
 
@@ -80,7 +80,7 @@ def removeStringLiterals(program: List[str], hasQuoteOnPreviousLine: bool = Fals
             # replace whole line
             if len(tail) == 0:
                 print(f"\033[31m"  # red color
-                      f"Syntax warning: unterminated string at end of file, '\"' inserted"
+                      f"Syntax warning: Unterminated string at end of file, '\"' inserted"
                       f"\033[0m")  # standard color
                 return ["$str$"], [head + '"']
             else:
@@ -106,7 +106,7 @@ def removeStringLiterals(program: List[str], hasQuoteOnPreviousLine: bool = Fals
 
                 if len(tail) == 0:
                     print(f"\033[31m"  # red color
-                          f"Syntax warning: unterminated string at end of file, '\"' inserted"
+                          f"Syntax warning: Unterminated string at end of file, '\"' inserted"
                           f"\033[0m")  # standard color
                     return [head], [literal + '"']
                 else:
@@ -163,6 +163,13 @@ def loadFile(fileName: str) -> LoadedFile:
 
         labels: List[Label] = labelParser.getLabels(file_contents)
 
+        for label in labels:
+            if labels.count(label) > 1:
+                print(f"\033[31m"  # red color
+                      f"File \"{fileName}\"\n"
+                      f"\tSyntax error: Label is declared multiple times in the same file"
+                      f"\033[0m")  # standard color
+                exit(-1)
         globalLabels: List[str] = labelParser.getGlobalLabels(file_contents, labels)
 
         loadedFile = LoadedFile(fileName, file_contents, globalLabels, labels)

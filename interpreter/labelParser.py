@@ -22,6 +22,15 @@ class Label:
     def __repr__(self):
         return self.__str__()
 
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return self.name == other.name
+        else:
+            return False
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
 
 # validateLabel:: String -> int -> String
 # validate a label, idx is used to generate a meaningful error message if the label is invalid
@@ -34,7 +43,7 @@ def validateLabel(text: str, idx: int) -> str:
     if regex.fullmatch(text) is None:
         raise InvalidInputException(f"\033[31m"  # red color
                                     f"File \"$fileName$\", line {idx + 1}\n"
-                                    f"\tSyntax error, invalid label: '{text}'\n"
+                                    f"\tSyntax error: Invalid label: '{text}'\n"
                                     f"\tA label should only contain alphanumerical characters and underscores "
                                     f"and should not start with a number"
                                     f"\033[0m")  # standard color
@@ -71,8 +80,8 @@ def validateGlobalLabel(text: str, labelNames: List[str], idx: int) -> str:
     if text not in labelNames:
         raise InvalidInputException(f"\033[31m"  # red color
                                     f"File \"$fileName$\", line {idx + 1}\n"
-                                    f"\tSyntax error, label not found: '{text}'\n"
-                                    f"\tlabel is declared global but does not exist in this file"
+                                    f"\tSyntax error: Label not found: '{text}'\n"
+                                    f"\tLabel is declared global but does not exist in this file"
                                     f"\033[0m")  # standard color
     return text
 
