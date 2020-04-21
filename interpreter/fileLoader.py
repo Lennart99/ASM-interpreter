@@ -1,9 +1,7 @@
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 
-from high_order import zipWith
+from high_order import zipWith, foldL
 from invalidInputException import InvalidInputException
-from labelParser import Label
-import labelParser
 
 
 # formatLine:: String -> String
@@ -12,26 +10,26 @@ def formatLine(line: str) -> str:
         return line
 
     # Remove newlines
-    line = line.replace("\n", "")
+    line: str = line.replace("\n", "")
 
     # Remove single-line comments
-    if line.count("//") > 0:
-        line = line[0: line.index("//")]
-    if line.count(";") > 0:
-        line = line[0: line.index(";")]
+    if "//" in line:
+        line: str = line[0: line.index("//")]
+    if ";" in line:
+        line: str = line[0: line.index(";")]
 
     # Replace tabs with spaces
-    line = line.replace("\t", " ")
+    line: str = line.replace("\t", " ")
 
     # Remove multiple spaces in a row
-    while line.count("  ") > 0:
-        line = line.replace("  ", " ")
+    def func(x): return func(x.replace("  ", " ")) if "  " in x else x
+    line: str = func(line)
 
     # Remove spaces at start and end
     if line.startswith(" "):
-        line = line[1: -1]
+        line: str = line[1: -1]
     if line.endswith(" "):
-        line = line[0: -1]
+        line: str = line[0: -1]
 
     return line
 
@@ -50,16 +48,16 @@ def removeMultiLineComments(program: List[str], hasCommentOnPreviousLine: bool =
 
     if hasCommentOnPreviousLine:
         # The previous line ended with a multi line comment
-        if head.count("*/") > 0:
+        if "*/" in head:
             # */ detected, remove everything until */ (inclusive)
             return removeMultiLineComments([head[head.index("*/")+2:]] + tail, False)
         else:
             # No */ detected, remove whole line, but keep a empty string to keep track of the line numbers
             return [""] + removeMultiLineComments(tail, True)
     else:
-        if head.count("/*") > 0:
+        if "/*" in head:
             # /* detected, multi line comment started
-            if head.count("*/") > 0:
+            if "*/" in head:
                 # */ detected, remove everything from /* until */ (inclusive)
                 return removeMultiLineComments([head[0: head.index("/*")] + head[head.index("*/") + 2:]] + tail, False)
             else:
@@ -70,7 +68,7 @@ def removeMultiLineComments(program: List[str], hasCommentOnPreviousLine: bool =
             return [head] + removeMultiLineComments(tail, False)
 
 
-# removeStringLiterals:: bool -> [String] -> [[String], [String]]
+# removeStringLiterals:: bool -> [String] -> ([String], [String]))
 def removeStringLiterals(program: List[str], hasQuoteOnPreviousLine: bool = False) -> Tuple[List[str], List[str]]:
     # TODO permit multiple strings on same line
     if len(program) == 0:
@@ -80,7 +78,7 @@ def removeStringLiterals(program: List[str], hasQuoteOnPreviousLine: bool = Fals
 
     if hasQuoteOnPreviousLine:
         # The previous line ended with a string literal
-        if head.count('"') > 0:
+        if '"' in head:
             # Detected second quote replace everything before " (inclusive)
             prog, strings = removeStringLiterals(tail, False)
 
@@ -99,7 +97,7 @@ def removeStringLiterals(program: List[str], hasQuoteOnPreviousLine: bool = Fals
 
                 return ["$str$"] + prog, [head] + strings
     else:
-        if head.count('"') > 0:
+        if '"' in head:
             # Quote detected, string literal started
             if head.count('"') > 1:
                 # Detected second quote replace everything between quotes (inclusive)
@@ -137,15 +135,15 @@ def replaceStringLiterals(program: List[str], literals: List[str]) -> List[str]:
 
 
 class LoadedFile:
-    def __init__(self, name: str, contents: List[str], globalLabels: List[str], labels: List[Label]):
+    def __init__(self, name: str, contents: List[str], globalLabels: Dict[str, int], labels: Dict[str, int]):
         # The name of the label
         self.fileName: str = name
         # The contents of the file
         self.contents: List[str] = contents
         # The global labels
-        self.globalLabels: List[str] = globalLabels
+        self.globalLabels: Dict[str, int] = globalLabels
         # The labels with the indices where the first instruction can be found
-        self.labels: List[Label] = labels
+        self.labels: Dict[str, int] = labels
 
     def __str__(self):
         return (f"LoadedFile {{\n" 
@@ -169,25 +167,13 @@ def loadFile(fileName: str) -> LoadedFile:
         # Remove string literals to prevent to change the string literals
         file_contents, strings = removeStringLiterals(file_contents)
         # Remove comments and whitespaces
-        file_contents: List[str] = list(map(formatLine, file_contents))
         file_contents: List[str] = removeMultiLineComments(file_contents)
+        file_contents: List[str] = list(map(formatLine, file_contents))
         # Put the string literals back
         file_contents: List[str] = replaceStringLiterals(file_contents, strings)
 
-        labels: List[Label] = labelParser.getLabels(file_contents)
-        # Make sure there are no duplicate labels
-        for label in labels:
-            if labels.count(label) > 1:
-                print(f"\033[31m"  # red color
-                      f"File \"{fileName}\"\n"
-                      f"\tSyntax error: Label is declared multiple times in the same file"
-                      f"\033[0m")  # standard color
-                exit(-1)
-        
-        globalLabels: List[str] = labelParser.getGlobalLabels(file_contents, labels)
         # Create a LoadedFile object
-        loadedFile = LoadedFile(fileName, file_contents, globalLabels, labels)
-
+        loadedFile = LoadedFile(fileName, file_contents, None, None)
         return loadedFile
     except InvalidInputException as e:
         print(e.msg.replace("$fileName$", "program.asm"))
