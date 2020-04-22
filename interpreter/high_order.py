@@ -37,7 +37,11 @@ def foldR1(function: Callable[[A, A], A], lijst: List[A]) -> A:
 
 # zipWith:: (A -> B -> C) -> [A] -> [B] -> [C]
 def zipWith(f: Callable[[A, B], C], xs: List[A], ys: List[B]) -> List[C]:
-    return [f(a, b) for (a, b) in zip(xs, ys)]
+    if len(xs) == 0 or len(ys) == 0:
+        return []
+    x, *xs = xs
+    y, *ys = ys
+    return [f(x, y)] + zipWith(f, xs, ys)
 
 
 if __name__ == '__main__':
@@ -47,5 +51,6 @@ if __name__ == '__main__':
     print(zipWith(lambda a, b: a*b, [1, 2, 3], [4, 5, 6]))
 
     print(list(zip([1, 2, 3], [4, 5, 6])))
+    print(zipWith(lambda a, b: a+b, [1, 2, 3], [4, 5, 6]))
 
     print(list(map(lambda x: str(x), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])))
