@@ -12,7 +12,7 @@ class Token:
 
     def __str__(self) -> str:
         return "{}('{}', {}, {}, {})".\
-            format(type(self).__name__, self.contents.replace('\\', '\\\\').replace('\n', '\\n'),
+            format(type(self).__name__, self.contents,
                    self.line, self.column_start, self.column_end)
 
     def __repr__(self) -> str:
@@ -41,16 +41,32 @@ class LoadLabel(Token):
 class LoadImmediateValue(Token):
     def __init__(self, contents: str, line: int, column_start: int, column_end: int):
         super().__init__(contents.replace(" ", "").replace("\t", ""), line, column_start, column_end)
+        # count newlines
+        self.n_newLine = contents.count('\n')
+
+    def __str__(self) -> str:
+        return "{}('{}', {}, {}, {})".\
+            format(type(self).__name__, self.contents.replace('\n', '\\n'),
+                   self.line, self.column_start, self.column_end)
 
 
 # Note: can contain whitespaces between '#' and the value
 class ImmediateValue(Token):
     def __init__(self, contents: str, line: int, column_start: int, column_end: int):
         super().__init__(contents.replace(" ", "").replace("\t", ""), line, column_start, column_end)
+        # count newlines
+        self.n_newLine = contents.count('\n')
+
+    def __str__(self) -> str:
+        return "{}('{}', {}, {}, {})".\
+            format(type(self).__name__, self.contents.replace('\n', '\\n'),
+                   self.line, self.column_start, self.column_end)
 
 
 class Align(Token):
-    pass
+    def __init__(self, contents: str, line: int, column_start: int, column_end: int):
+        # Remove whitespace
+        super().__init__(".align " + contents[-1], line, column_start, column_end)
 
 
 class AsciiAsciz(Token):
@@ -81,7 +97,7 @@ class Comment(Token):
 
     def __str__(self) -> str:
         return "{}('{}', {} newlines, {}, {}, {})".\
-            format(type(self).__name__, self.contents.replace('\\', '\\\\').replace('\n', '\\n'), self.n_newLine,
+            format(type(self).__name__, self.contents.replace('\n', '\\n'), self.n_newLine,
                    self.line, self.column_start, self.column_end)
 
 
@@ -93,13 +109,13 @@ class StringLiteral(Token):
 
     def __str__(self) -> str:
         return "{}('{}', {} newlines, {}, {}, {})".\
-            format(type(self).__name__, self.contents.replace('\\', '\\\\').replace('\n', '\\n'), self.n_newLine,
+            format(type(self).__name__, self.contents.replace('\n', '\\n'), self.n_newLine,
                    self.line, self.column_start, self.column_end)
 
 
 class NewLine(Token):
     def __init__(self, contents: str, line: int, column_start: int, column_end: int):
-        super().__init__(contents, line, column_start, column_end)
+        super().__init__("\\n", line, column_start, column_end)
         self.n_newLine = 1
 
 
