@@ -92,8 +92,6 @@ def fixMismatches(tokenList: List[tokens.Token], file_contents: str) -> List[tok
         return []
     head, *tail = tokenList
     head: tokens.Token = head
-    if isinstance(head, tokens.Error):
-        return [head] + fixMismatches(tail, file_contents)
     if head.is_mismatch:
         idx: int = head.start_index
         text: str = head.contents

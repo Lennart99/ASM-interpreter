@@ -3,19 +3,18 @@ from enum import Enum
 
 
 class Token:
-    def __init__(self, contents: str, idx: int, line: int, column_start: int, column_end: int):
+    def __init__(self, contents: str, idx: int, line: int):
         self.contents = contents
         self.start_index = idx
         self.line = line
-        self.column_start = column_start
-        self.column_end = column_end
+        # Makes it possible to detect a mismatch
         self.is_mismatch = False
+        # makes it possible to count the newlines easily
         self.n_newLine = 0
 
     def __str__(self) -> str:
-        return "{}('{}', {}, {}, {}, {})".\
-            format(type(self).__name__, self.contents,
-                   self.line, self.column_start, self.column_end, self.start_index)
+        return "{}('{}')".\
+            format(type(self).__name__, self.contents)
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -35,46 +34,43 @@ class Label(Token):
 
 # Note: can contain whitespaces between '=' and the label
 class LoadLabel(Token):
-    def __init__(self, contents: str, idx: int, line: int, column_start: int, column_end: int):
-        super().__init__(contents.replace(" ", "").replace("\t", ""), idx, line, column_start, column_end)
+    def __init__(self, contents: str, idx: int, line: int):
+        super().__init__(contents.replace(" ", "").replace("\t", ""), idx, line)
         self.label: str = self.contents[1:]
 
     def __str__(self) -> str:
-        return "{}('{}', {}, {}, {})".\
-            format(type(self).__name__, self.label,
-                   self.line, self.column_start, self.column_end)
+        return "{}('{}')".\
+            format(type(self).__name__, self.label)
 
 
 class LoadImmediateValue(Token):
-    def __init__(self, value: Union[str, int], contents: str, idx: int, line: int, column_start: int, column_end: int):
-        super().__init__(contents, idx, line, column_start, column_end)
+    def __init__(self, value: Union[str, int], contents: str, idx: int, line: int):
+        super().__init__(contents, idx, line)
         self.value: Union[str, int] = value
         # count newlines
         self.n_newLine = contents.count('\n')
 
     def __str__(self) -> str:
-        return "{}('{}', {}, {}, {})".\
-            format(type(self).__name__, self.value,
-                   self.line, self.column_start, self.column_end)
+        return "{}('{}')".\
+            format(type(self).__name__, self.value)
 
 
 class ImmediateValue(Token):
-    def __init__(self, value: Union[str, int], contents: str, idx: int, line: int, column_start: int, column_end: int):
-        super().__init__(contents, idx, line, column_start, column_end)
+    def __init__(self, value: Union[str, int], contents: str, idx: int, line: int):
+        super().__init__(contents, idx, line)
         self.value: Union[str, int] = value
         # count newlines
         self.n_newLine = contents.count('\n')
 
     def __str__(self) -> str:
-        return "{}('{}', {}, {}, {})".\
-            format(type(self).__name__, self.value,
-                   self.line, self.column_start, self.column_end)
+        return "{}('{}')".\
+            format(type(self).__name__, self.value)
 
 
 class Align(Token):
-    def __init__(self, contents: str, idx: int, line: int, column_start: int, column_end: int):
+    def __init__(self, contents: str, idx: int, line: int):
         # Remove whitespace
-        super().__init__(".align " + contents[-1], idx, line, column_start, column_end)
+        super().__init__(".align " + contents[-1], idx, line)
 
 
 class AsciiAsciz(Token):
@@ -98,38 +94,40 @@ class Separator(Token):
 
 
 class Comment(Token):
-    def __init__(self, contents: str, idx: int, line: int, column_start: int, column_end: int):
-        super().__init__(contents, idx, line, column_start, column_end)
+    def __init__(self, contents: str, idx: int, line: int):
+        super().__init__(contents, idx, line)
         # count newlines
         self.n_newLine = contents.count('\n')
 
     def __str__(self) -> str:
-        return "{}('{}', {} newlines, {}, {}, {})".\
-            format(type(self).__name__, self.contents.replace('\n', '\\n'), self.n_newLine,
-                   self.line, self.column_start, self.column_end)
+        return "{}('{}', {} newlines)".\
+            format(type(self).__name__, self.contents.replace('\n', '\\n'), self.n_newLine)
 
 
 class StringLiteral(Token):
-    def __init__(self, contents: str, idx: int, line: int, column_start: int, column_end: int):
-        super().__init__(contents, idx, line, column_start, column_end)
+    def __init__(self, contents: str, idx: int, line: int):
+        super().__init__(contents, idx, line)
         # count newlines
         self.n_newLine = contents.count('\n')
 
     def __str__(self) -> str:
-        return "{}('{}', {} newlines, {}, {}, {})".\
-            format(type(self).__name__, self.contents.replace('\n', '\\n'), self.n_newLine,
-                   self.line, self.column_start, self.column_end)
+        return "{}('{}', {} newlines)".\
+            format(type(self).__name__, self.contents.replace('\n', '\\n'), self.n_newLine)
 
 
 class NewLine(Token):
-    def __init__(self, contents: str, idx: int, line: int, column_start: int, column_end: int):
-        super().__init__(contents, idx, line, column_start, column_end)
+    def __init__(self, contents: str, idx: int, line: int):
+        super().__init__(contents, idx, line)
         self.n_newLine = 1
+
+    def __str__(self) -> str:
+        return "{}('{}')".\
+            format(type(self).__name__, "\\n")
 
 
 class Mismatch(Token):
-    def __init__(self, contents: str, idx: int, line: int, column_start: int, column_end: int):
-        super().__init__(contents, idx, line, column_start, column_end)
+    def __init__(self, contents: str, idx: int, line: int):
+        super().__init__(contents, idx, line)
         self.is_mismatch = True
 
 
@@ -141,8 +139,10 @@ class Error(Token):
         Warning = 1
         Error = 2
 
-    def __init__(self, message: str, type: ErrorType):
+    def __init__(self, message: str, errorType: ErrorType):
+        super().__init__("ERROR", -1, -1)
         self.message = message
+        self.errorType = errorType
 
     def __str__(self) -> str:
         return self.message
@@ -169,7 +169,7 @@ def getCharValue(text: str, line: int) -> Union[str, Error]:
     if len(text) == 0:
         return Error(f"\033[31m"  # red color
                      f"File \"$fileName$\", line {line}\n"
-                     f"\tSyntax error: no value after '#' or '='"
+                     f"\tSyntax error: No value after '#' or '='"
                      f"\033[0m", Error.ErrorType.Error)
     if text[0] in " \t":
         return getCharValue(text[1:], line)
@@ -192,48 +192,35 @@ def getCharValue(text: str, line: int) -> Union[str, Error]:
 
 
 # createImmediateValue:: str -> int -> int -> int -> int -> int -> Token|None
-def createImmediateValue(contents: str, idx: int, line: int, column_start: int, column_end: int) -> Union[Token, None]:
+def createImmediateValue(constr: Callable[[Union[str, int], str, int, int], Token],
+                         contents: str, idx: int, line: int) -> Token:
     # because of the regex we know for sure the text starts with #
     if "'" in contents:
         if contents.count("'") < 2:
             return Error(f"\033[31m"  # red color
                          f"File \"$fileName$\", line {line}\n"
-                         f"\tSyntax error: immediate character declaration was not closed (\"'\" missing)"
+                         f"\tSyntax error: Immediate character declaration was not closed (\"'\" missing)"
                          f"\033[0m", Error.ErrorType.Error)
         else:
             value = getCharValue(contents[1:], line)
-            return ImmediateValue(value, contents, idx, line, column_start, column_end)
+            if isinstance(value, Error):
+                return value
+            return constr(value, contents, idx, line)
     else:
         value: int = getIntValue(contents[1:], line)
-        return ImmediateValue(value, contents, idx, line, column_start, column_end)
+        if isinstance(value, Error):
+            return value
+        return constr(value, contents, idx, line)
 
 
-# createLoadImmediateValue:: str -> int -> int -> int -> int -> int -> Token|None
-def createLoadImmediateValue(contents: str, idx: int, line: int, column_start: int, column_end: int) -> \
-        Union[Token, None]:
-    # because of the regex we know for sure the text starts with =
-    if "'" in contents:
-        if contents.count("'") < 2:
-            return Error(f"\033[31m"  # red color
-                         f"File \"$fileName$\", line {line}\n"
-                         f"\tSyntax error: immediate character declaration was not closed (\"'\" missing)"
-                         f"\033[0m", Error.ErrorType.Error)
-        else:
-            value = getCharValue(contents[1:], line)
-            return ImmediateValue(value, contents, idx, line, column_start, column_end)
-    else:
-        value: int = getIntValue(contents[1:], line)
-        return ImmediateValue(value, contents, idx, line, column_start, column_end)
-
-
-# TODO fix missing ' in immed value
-tokenConstructors: Dict[str, Callable[[str, int, int, int, int], Token]] = {
+# functions to create the different tokens
+tokenConstructors: Dict[str, Callable[[str, int, int], Token]] = {
     "INSTRUCTION": Instruction,
     "REGISTER": Register,
     "LD_LABEL": LoadLabel,
     "LABEL": Label,
-    "IMMED_VALUE": createImmediateValue,
-    "LD_IMMED_VALUE": createLoadImmediateValue,
+    "IMMED_VALUE": lambda a, b, c: createImmediateValue(ImmediateValue, a, b, c),
+    "LD_IMMED_VALUE": lambda a, b, c: createImmediateValue(LoadImmediateValue, a, b, c),
     "ALIGN": Align,
     "ASCII_ASCIZ": AsciiAsciz,
     "SECTION": Section,
