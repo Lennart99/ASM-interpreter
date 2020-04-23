@@ -4,6 +4,7 @@ import re
 import tokens
 from high_order import foldL
 
+# Possible instructions for ARM Cortex M0 assembly
 INSTRUCTIONS = ["MOV", "LDR", "LDRH", "LDRB", "STR", "STRRH", "STRB", "LDRSH", "LDRSB",
                 "PUSH", "POP", "LDM", "LDMIA", "STMIA",
                 "ADD", "ADC", "SUB", "SBC", "MUL",
@@ -15,6 +16,7 @@ INSTRUCTIONS = ["MOV", "LDR", "LDRH", "LDRB", "STR", "STRRH", "STRB", "LDRSH", "
                 "B", "BX", "BL", "BLX",
                 "BCC", "BCS", "BEQ", "BGE", "BGT", "BHI", "BLE", "BLS", "BLT", "BMI", "BNE", "BPL", "BVC", "BVS"]
 
+# Regular expression with possible instructions
 R_INSTRUCTION = r"(?P<INSTRUCTION>" + \
                 foldL(lambda text, instr: text + "|" + instr+"", INSTRUCTIONS[0], INSTRUCTIONS[1:]) + \
                 ")|"
@@ -24,6 +26,7 @@ R_INSTRUCTION = r"(?P<INSTRUCTION>" + \
 # https://stackoverflow.com/questions/5474008/regular-expression-to-confirm-whether-a-string-is-a-valid-identifier-in-python
 R_LABEL = r"[^\d\W]\w*"
 
+# Regular expression to generate tokens
 TOKEN_REGEX = re.compile(R_INSTRUCTION +
                          r"(?P<REGISTER>SP|LR|PC|r1[0-2]|r[0-9])|"
                          r"(?P<LD_LABEL>=[ \t]*(" + R_LABEL + "))|"
@@ -62,20 +65,18 @@ def match_to_token(match: Match[Union[str, Any]], file_contents: str, offset: in
     kind: str = match.lastgroup
     value: str = match.group()
 
-    func: Callable[[str, int, int, int], tokens.Token] = tokens.tokenConstructors[kind]
+    func: Callable[[str, int, int], tokens.Token] = tokens.tokenConstructors[kind]
     if func is None:
         return None
 
     processed: str = file_contents[:match.start()+offset]
     line = processed.count('\n') + 1
-    if line > 1:
-        lastNewLine = lastIndex(processed, '\n')
-    else:
-        lastNewLine = 0
-    token = func(value, match.start()+offset, line, match.start()+offset-lastNewLine, match.end()+offset-lastNewLine)
+    token = func(value, match.start()+offset, line)
     return token
 
 
+# Convert the text to tokens from a certain index
+# Used in fixMismatches to redo part of the lexing process after fixing an error
 def lexFrom(file_contents: str, indexFrom: int) -> List[tokens.Token]:
     matches = TOKEN_REGEX.finditer(file_contents[indexFrom:])
     tokenList = list(filter(lambda x: x is not None,
@@ -83,10 +84,13 @@ def lexFrom(file_contents: str, indexFrom: int) -> List[tokens.Token]:
     return tokenList
 
 
+# Convert the text to tokens for the whole file
 def lexFile(file_contents: str) -> List[tokens.Token]:
     return lexFrom(file_contents, 0)
 
 
+# Fix mismatches that can be fixed.
+# This is done by inserting additional characters and converting the remaining text again
 def fixMismatches(tokenList: List[tokens.Token], file_contents: str) -> List[tokens.Token]:
     if len(tokenList) == 0:
         return []
@@ -95,9 +99,8 @@ def fixMismatches(tokenList: List[tokens.Token], file_contents: str) -> List[tok
     if head.is_mismatch:
         idx: int = head.start_index
         text: str = head.contents
-        # error: tokens.Token = None
-
         if text[0] == '"':
+            # String is not terminated, add " to the end of the file
             error: tokens.Token = \
                 tokens.Error(f"\033[31m"  # red color
                              f"File \"$fileName$\"\n"
@@ -105,6 +108,7 @@ def fixMismatches(tokenList: List[tokens.Token], file_contents: str) -> List[tok
                              f"\033[0m", tokens.Error.ErrorType.Warning)
             file_contents = file_contents + "\""
         elif text[0:2] == '/*':
+            # Multi-line comment is not terminated, add */ to the end of the file
             error: tokens.Token = \
                 tokens.Error(f"\033[31m"  # red color
                              f"File \"$fileName$\"\n"
@@ -112,6 +116,7 @@ def fixMismatches(tokenList: List[tokens.Token], file_contents: str) -> List[tok
                              f"\033[0m", tokens.Error.ErrorType.Warning)
             file_contents = file_contents + "*/"
         else:
+            # Don't know what to do, generate an error
             error: tokens.Token = \
                 tokens.Error(f"\033[31m"  # red color
                              f"File \"$fileName$\", line {head.line}\n"
@@ -119,6 +124,7 @@ def fixMismatches(tokenList: List[tokens.Token], file_contents: str) -> List[tok
                              f"\033[0m", tokens.Error.ErrorType.Error)
             return [error] + fixMismatches(tail, file_contents)
 
+        # Re-generate the tokens with the changes text
         newTokens = lexFrom(file_contents, idx)
         if error is not None:
             return [error] + fixMismatches(newTokens, file_contents)
@@ -126,3 +132,20 @@ def fixMismatches(tokenList: List[tokens.Token], file_contents: str) -> List[tok
             return fixMismatches(newTokens, file_contents)
     else:
         return [head] + fixMismatches(tail, file_contents)
+
+
+# printAndReturn:: Token -> String -> ErrorType
+# Prints the error and returns the error type
+def printAndReturn(token: tokens.Token, fileName: str) -> tokens.Error.ErrorType:
+    if isinstance(token, tokens.Error):
+        print(token.message.replace("$fileName$", fileName))
+        return token.errorType
+    return tokens.Error.ErrorType.NoError
+
+
+# printErrors:: [Token] -> String -> boolean
+# Print all errors and returns True when the program should exit
+def printErrors(tokenList: List[tokens.Token], fileName: str) -> bool:
+    errList = list(filter(lambda a: a == tokens.Error.ErrorType.Error,
+                          map(lambda a: printAndReturn(a, fileName), tokenList)))
+    return len(errList) > 0
