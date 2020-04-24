@@ -5,7 +5,7 @@ import tokens
 from high_order import foldL
 
 # Possible instructions for ARM Cortex M0 assembly
-INSTRUCTIONS = ["MOV", "LDR", "LDRH", "LDRB", "STR", "STRRH", "STRB", "LDRSH", "LDRSB",
+INSTRUCTIONS = ["MOV", "LDR", "LDRH", "LDRB", "STR", "STRH", "STRB", "LDRSH", "LDRSB",
                 "PUSH", "POP", "LDM", "LDMIA", "STMIA",
                 "ADD", "ADC", "SUB", "SBC", "MUL",
                 "AND", "EOR", "ORR", "BIC", "MOVN",
@@ -117,57 +117,57 @@ def fixMismatches(tokenList: List[tokens.Token], file_contents: str) -> List[tok
         if text[0] == '"':
             # String is not terminated, add " to the end of the file
             error: tokens.Token = \
-                tokens.Error(f"\033[31m"  # red color
-                             f"File \"$fileName$\"\n"
-                             f"\tSyntax warning: Unterminated string at end of file, '\"' inserted"
-                             f"\033[0m", tokens.Error.ErrorType.Warning)
+                tokens.ErrorToken(f"\033[31m"  # red color
+                                  f"File \"$fileName$\"\n"
+                                  f"\tSyntax warning: Unterminated string at end of file, '\"' inserted"
+                                  f"\033[0m", tokens.ErrorToken.ErrorType.Warning)
             file_contents = file_contents + "\""
         elif text[0:2] == '/*':
             # Multi-line comment is not terminated, add */ to the end of the file
             error: tokens.Token = \
-                tokens.Error(f"\033[31m"  # red color
-                             f"File \"$fileName$\"\n"
-                             f"\tSyntax warning: Multi-line comment opened, but not closed (*/ is missing)"
-                             f"\033[0m", tokens.Error.ErrorType.Warning)
+                tokens.ErrorToken(f"\033[31m"  # red color
+                                  f"File \"$fileName$\"\n"
+                                  f"\tSyntax warning: Multi-line comment opened, but not closed (*/ is missing)"
+                                  f"\033[0m", tokens.ErrorToken.ErrorType.Warning)
             file_contents = file_contents + "*/"
         elif len(text) > 1 and text[0] in '#=':
             if text[1] == "'":
                 # quote
                 if len(text) > 3 and text[2] == '\\' and text[3] in "tnrfv":
                     error: tokens.Token = \
-                        tokens.Error(f"\033[31m"  # red color
-                                     f"File \"$fileName$\", line {head.line}\n"
-                                     f"\tSyntax error: No \"'\" found after \"{text[0:4]}\""
-                                     f"\033[0m", tokens.Error.ErrorType.Error)
+                        tokens.ErrorToken(f"\033[31m"  # red color
+                                          f"File \"$fileName$\", line {head.line}\n"
+                                          f"\tSyntax error: No \"'\" found after \"{text[0:4]}\""
+                                          f"\033[0m", tokens.ErrorToken.ErrorType.Error)
                     return [error] + fixMismatches(tail[3:], file_contents)
                 elif len(text) > 2:
                     error: tokens.Token = \
-                        tokens.Error(f"\033[31m"  # red color
-                                     f"File \"$fileName$\", line {head.line}\n"
-                                     f"\tSyntax error: No \"'\" found after \"{text[0:3]}\""
-                                     f"\033[0m", tokens.Error.ErrorType.Error)
+                        tokens.ErrorToken(f"\033[31m"  # red color
+                                          f"File \"$fileName$\", line {head.line}\n"
+                                          f"\tSyntax error: No \"'\" found after \"{text[0:3]}\""
+                                          f"\033[0m", tokens.ErrorToken.ErrorType.Error)
                     return [error] + fixMismatches(tail[2:], file_contents)
                 else:
                     error: tokens.Token = \
-                        tokens.Error(f"\033[31m"  # red color
-                                     f"File \"$fileName$\", line {head.line}\n"
-                                     f"\tSyntax error: No character found after \"{text[:2]}\""
-                                     f"\033[0m", tokens.Error.ErrorType.Error)
+                        tokens.ErrorToken(f"\033[31m"  # red color
+                                          f"File \"$fileName$\", line {head.line}\n"
+                                          f"\tSyntax error: No character found after \"{text[:2]}\""
+                                          f"\033[0m", tokens.ErrorToken.ErrorType.Error)
                     return [error] + fixMismatches(tail[1:], file_contents)
             else:
                 error: tokens.Token = \
-                    tokens.Error(f"\033[31m"  # red color
-                                 f"File \"$fileName$\", line {head.line}\n"
-                                 f"\tSyntax error: Unknown token: {text[1]}"
-                                 f"\033[0m", tokens.Error.ErrorType.Error)
+                    tokens.ErrorToken(f"\033[31m"  # red color
+                                      f"File \"$fileName$\", line {head.line}\n"
+                                      f"\tSyntax error: Unknown token: {text[1]}"
+                                      f"\033[0m", tokens.ErrorToken.ErrorType.Error)
                 return [error] + fixMismatches(tail, file_contents)
         else:
             # Don't know what to do, generate an error
             error: tokens.Token = \
-                tokens.Error(f"\033[31m"  # red color
-                             f"File \"$fileName$\", line {head.line}\n"
-                             f"\tSyntax error: Unknown token: {text[0]}"
-                             f"\033[0m", tokens.Error.ErrorType.Error)
+                tokens.ErrorToken(f"\033[31m"  # red color
+                                  f"File \"$fileName$\", line {head.line}\n"
+                                  f"\tSyntax error: Unknown token: {text[0]}"
+                                  f"\033[0m", tokens.ErrorToken.ErrorType.Error)
             return [error] + fixMismatches(tail, file_contents)
 
         # Re-generate the tokens with the changes text
@@ -182,16 +182,16 @@ def fixMismatches(tokenList: List[tokens.Token], file_contents: str) -> List[tok
 
 # printAndReturn:: Token -> String -> ErrorType
 # Prints the error and returns the error type
-def printAndReturn(token: tokens.Token, fileName: str) -> tokens.Error.ErrorType:
-    if isinstance(token, tokens.Error):
+def printAndReturn(token: tokens.Token, fileName: str) -> tokens.ErrorToken.ErrorType:
+    if isinstance(token, tokens.ErrorToken):
         print(token.message.replace("$fileName$", fileName))
         return token.errorType
-    return tokens.Error.ErrorType.NoError
+    return tokens.ErrorToken.ErrorType.NoError
 
 
 # printErrors:: [Token] -> String -> boolean
 # Print all errors and returns True when the program should exit
 def printErrors(tokenList: List[tokens.Token], fileName: str) -> bool:
-    errList = list(filter(lambda a: a == tokens.Error.ErrorType.Error,
+    errList = list(filter(lambda a: a == tokens.ErrorToken.ErrorType.Error,
                           map(lambda a: printAndReturn(a, fileName), tokenList)))
     return len(errList) > 0

@@ -12,5 +12,3 @@ loadedTokens = lexer.fixMismatches(loadedTokens, file_contents)
 if lexer.printErrors(loadedTokens, "program.asm"):
     exit(-1)
 
-for t in filter(lambda x: not isinstance(x, tokens.Error), loadedTokens):
-    print(t)

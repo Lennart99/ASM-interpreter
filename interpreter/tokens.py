@@ -9,8 +9,6 @@ class Token:
         self.line = line
         # Makes it possible to detect a mismatch
         self.is_mismatch = False
-        # makes it possible to count the newlines easily
-        self.n_newLine = 0
 
     def __str__(self) -> str:
         return "{}('{}')".\
@@ -47,8 +45,6 @@ class LoadImmediateValue(Token):
     def __init__(self, value: int, contents: str, idx: int, line: int):
         super().__init__(contents, idx, line)
         self.value: int = value
-        # count newlines
-        self.n_newLine = contents.count('\n')
 
     def __str__(self) -> str:
         return "{}({})".\
@@ -59,8 +55,6 @@ class ImmediateValue(Token):
     def __init__(self, value: int, contents: str, idx: int, line: int):
         super().__init__(contents, idx, line)
         self.value: int = value
-        # count newlines
-        self.n_newLine = contents.count('\n')
 
     def __str__(self) -> str:
         return "{}('{}')".\
@@ -96,29 +90,24 @@ class Separator(Token):
 class Comment(Token):
     def __init__(self, contents: str, idx: int, line: int):
         super().__init__(contents, idx, line)
-        # count newlines
-        self.n_newLine = contents.count('\n')
 
     def __str__(self) -> str:
-        return "{}('{}', {} newlines)".\
-            format(type(self).__name__, self.contents.replace('\n', '\\n'), self.n_newLine)
+        return "{}('{}')".\
+            format(type(self).__name__, self.contents.replace('\n', '\\n'))
 
 
 class StringLiteral(Token):
     def __init__(self, contents: str, idx: int, line: int):
         super().__init__(contents, idx, line)
-        # count newlines
-        self.n_newLine = contents.count('\n')
 
     def __str__(self) -> str:
-        return "{}('{}', {} newlines)".\
-            format(type(self).__name__, self.contents.replace('\n', '\\n'), self.n_newLine)
+        return "{}('{}')".\
+            format(type(self).__name__, self.contents.replace('\n', '\\n'))
 
 
 class NewLine(Token):
     def __init__(self, contents: str, idx: int, line: int):
         super().__init__(contents, idx, line)
-        self.n_newLine = 1
 
     def __str__(self) -> str:
         return "{}('{}')".\
@@ -133,7 +122,7 @@ class Mismatch(Token):
 
 # This type can be added to the tokens to indicate a error has occurred
 # The error can be printed later on
-class Error(Token):
+class ErrorToken(Token):
     class ErrorType(Enum):
         NoError = 0
         Warning = 1
@@ -142,19 +131,19 @@ class Error(Token):
     def __init__(self, message: str, errorType: ErrorType):
         super().__init__("ERROR", -1, -1)
         self.message = message
-        self.errorType = errorType
+        self.errorType: ErrorToken.ErrorType = errorType
 
     def __str__(self) -> str:
         return self.message
 
 
 # getIntValue:: str -> int -> int|Error
-def getIntValue(text: str, line: int) -> Union[int, Error]:
+def getIntValue(text: str, line: int) -> Union[int, ErrorToken]:
     if len(text) == 0:
-        return Error(f"\033[31m"  # red color
-                     f"File \"$fileName$\", line {line}\n"
-                     f"\tSyntax error: no value after '#' or '='"
-                     f"\033[0m", Error.ErrorType.Error)
+        return ErrorToken(f"\033[31m"  # red color
+                          f"File \"$fileName$\", line {line}\n"
+                          f"\tSyntax error: no value after '#' or '='"
+                          f"\033[0m", ErrorToken.ErrorType.Error)
     # remove whitespaces
     if text[0] in " \t":
         return getIntValue(text[1:], line)
@@ -176,12 +165,12 @@ def charToInt(text: str) -> int:
 
 
 # getCharValue:: str -> int -> str|Error
-def getCharValue(text: str, line: int) -> Union[str, Error]:
+def getCharValue(text: str, line: int) -> Union[str, ErrorToken]:
     if len(text) == 0:
-        return Error(f"\033[31m"  # red color
-                     f"File \"$fileName$\", line {line}\n"
-                     f"\tSyntax error: No value after '#' or '='"
-                     f"\033[0m", Error.ErrorType.Error)
+        return ErrorToken(f"\033[31m"  # red color
+                          f"File \"$fileName$\", line {line}\n"
+                          f"\tSyntax error: No value after '#' or '='"
+                          f"\033[0m", ErrorToken.ErrorType.Error)
     # remove whitespaces
     if text[0] in " \t":
         return getCharValue(text[1:], line)
@@ -190,20 +179,20 @@ def getCharValue(text: str, line: int) -> Union[str, Error]:
     else:
         text = text[1:-1]
         if len(text) == 0:
-            return Error(f"\033[31m"  # red color
-                         f"File \"$fileName$\", line {line}\n"
-                         f"\tSyntax error: No character found in immediate value"
-                         f"\033[0m", Error.ErrorType.Error)
+            return ErrorToken(f"\033[31m"  # red color
+                              f"File \"$fileName$\", line {line}\n"
+                              f"\tSyntax error: No character found in immediate value"
+                              f"\033[0m", ErrorToken.ErrorType.Error)
         elif len(text) > 2:
-            return Error(f"\033[31m"  # red color
-                         f"File \"$fileName$\", line {line}\n"
-                         f"\tSyntax error: More then one character in the quotes '{text}'"
-                         f"\033[0m", Error.ErrorType.Error)
+            return ErrorToken(f"\033[31m"  # red color
+                              f"File \"$fileName$\", line {line}\n"
+                              f"\tSyntax error: More then one character in the quotes '{text}'"
+                              f"\033[0m", ErrorToken.ErrorType.Error)
         elif len(text) == 2 and text[0] != '\\':
-            return Error(f"\033[31m"  # red color
-                         f"File \"$fileName$\", line {line}\n"
-                         f"\tSyntax error: More then one character in the quotes '{text}'"
-                         f"\033[0m", Error.ErrorType.Error)
+            return ErrorToken(f"\033[31m"  # red color
+                              f"File \"$fileName$\", line {line}\n"
+                              f"\tSyntax error: More then one character in the quotes '{text}'"
+                              f"\033[0m", ErrorToken.ErrorType.Error)
         # get the char
         return text
 
@@ -215,18 +204,18 @@ def createImmediateValue(constr: Callable[[int, str, int, int], Token],
     # because of the regex we know for sure the text starts with #
     if "'" in contents:
         if contents.count("'") < 2:
-            return Error(f"\033[31m"  # red color
-                         f"File \"$fileName$\", line {line}\n"
-                         f"\tSyntax error: Immediate character declaration was not closed (\"'\" missing)"
-                         f"\033[0m", Error.ErrorType.Error)
+            return ErrorToken(f"\033[31m"  # red color
+                              f"File \"$fileName$\", line {line}\n"
+                              f"\tSyntax error: Immediate character declaration was not closed (\"'\" missing)"
+                              f"\033[0m", ErrorToken.ErrorType.Error)
         else:
-            value: Union[str, Error] = getCharValue(contents[1:], line)
-            if isinstance(value, Error):
+            value: Union[str, ErrorToken] = getCharValue(contents[1:], line)
+            if isinstance(value, ErrorToken):
                 return value
             return constr(charToInt(value), contents, idx, line)
     else:
-        value: Union[int, Error] = getIntValue(contents[1:], line)
-        if isinstance(value, Error):
+        value: Union[int, ErrorToken] = getIntValue(contents[1:], line)
+        if isinstance(value, ErrorToken):
             return value
         return constr(value, contents, idx, line)
 
