@@ -32,9 +32,9 @@ TOKEN_REGEX = re.compile(R_INSTRUCTION +
                          r"(?P<LD_LABEL>=[ \t]*(" + R_LABEL + "))|"
                          r"(?P<LABEL>" + R_LABEL + ")|"
                          r"(?P<IMMED_VALUE>"
-                         r"#[ \t]*0x[0-9a-f]*|#[ \t]*0b[01]*|#[ \t]*'((\\[tnrfv])|(.))'?|#[ \t]*[0-9]*)|"
+                         r"#[ \t]*0x[0-9a-f]+|#[ \t]*0b[01]+|#[ \t]*'((\\[tnrfv])|(.))'|#[ \t]*[0-9]+)|"
                          r"(?P<LD_IMMED_VALUE>"
-                         r"=[ \t]*0x[0-9a-f]*|=[ \t]*0b[01]*|=[ \t]*'((\\[tnrfv])|(.))'?|=[ \t]*[0-9]*)|"
+                         r"=[ \t]*0x[0-9a-f]+|=[ \t]*0b[01]+|=[ \t]*'((\\[tnrfv])|(.))'|=[ \t]*[0-9]+)|"
                          r"(?P<ALIGN>\.align[ \t]*[1248])|"
                          r"(?P<ASCII_ASCIZ>\.ascii|\.asciz)|"
                          r"(?P<SECTION>\.text|\.bss|\.data)|"
@@ -46,7 +46,7 @@ TOKEN_REGEX = re.compile(R_INSTRUCTION +
                          r"(?P<STRINGLITERAL>\".*?\")|"
                          r"(?P<IGNORE>[ \t]+)|"
                          r"(?P<NEWLINE>\n)|"
-                         r"(?P<MISMATCH>[^\n]+)", re.DOTALL+re.ASCII+re.IGNORECASE)
+                         r"(?P<MISMATCH>.)", re.DOTALL+re.ASCII+re.IGNORECASE)
 
 
 # lastIndex:: String -> String -> int
@@ -89,6 +89,21 @@ def lexFile(file_contents: str) -> List[tokens.Token]:
     return lexFrom(file_contents, 0)
 
 
+# addSubsequentTokens:: [Token] -> str
+# Adds all subsequent tokens to a string, stops when more then one token is no Mismatch
+# This way, a character after a ' will be added to the string even though it is classified as a Label
+def addSubsequentTokens(tokenList: List[tokens.Token]) -> str:
+    def addSubsequentTokensRecursive(tokenlijst, add) -> str:
+        if len(tokenlijst) == 0:
+            return add
+        head, *tail = tokenlijst
+        if head.is_mismatch or tail[0].is_mismatch:
+            return addSubsequentTokensRecursive(tail, add + head.contents)
+        else:
+            return add+head.contents
+    return addSubsequentTokensRecursive(tokenList, "")
+
+
 # Fix mismatches that can be fixed.
 # This is done by inserting additional characters and converting the remaining text again
 def fixMismatches(tokenList: List[tokens.Token], file_contents: str) -> List[tokens.Token]:
@@ -98,7 +113,7 @@ def fixMismatches(tokenList: List[tokens.Token], file_contents: str) -> List[tok
     head: tokens.Token = head
     if head.is_mismatch:
         idx: int = head.start_index
-        text: str = head.contents
+        text: str = addSubsequentTokens(tokenList)
         if text[0] == '"':
             # String is not terminated, add " to the end of the file
             error: tokens.Token = \
@@ -115,12 +130,43 @@ def fixMismatches(tokenList: List[tokens.Token], file_contents: str) -> List[tok
                              f"\tSyntax warning: Multi-line comment opened, but not closed (*/ is missing)"
                              f"\033[0m", tokens.Error.ErrorType.Warning)
             file_contents = file_contents + "*/"
+        elif len(text) > 1 and text[0] in '#=':
+            if text[1] == "'":
+                # quote
+                if len(text) > 3 and text[2] == '\\' and text[3] in "tnrfv":
+                    error: tokens.Token = \
+                        tokens.Error(f"\033[31m"  # red color
+                                     f"File \"$fileName$\", line {head.line}\n"
+                                     f"\tSyntax error: No \"'\" found after \"{text[0:4]}\""
+                                     f"\033[0m", tokens.Error.ErrorType.Error)
+                    return [error] + fixMismatches(tail[3:], file_contents)
+                elif len(text) > 2:
+                    error: tokens.Token = \
+                        tokens.Error(f"\033[31m"  # red color
+                                     f"File \"$fileName$\", line {head.line}\n"
+                                     f"\tSyntax error: No \"'\" found after \"{text[0:3]}\""
+                                     f"\033[0m", tokens.Error.ErrorType.Error)
+                    return [error] + fixMismatches(tail[2:], file_contents)
+                else:
+                    error: tokens.Token = \
+                        tokens.Error(f"\033[31m"  # red color
+                                     f"File \"$fileName$\", line {head.line}\n"
+                                     f"\tSyntax error: No character found after \"{text[:2]}\""
+                                     f"\033[0m", tokens.Error.ErrorType.Error)
+                    return [error] + fixMismatches(tail[1:], file_contents)
+            else:
+                error: tokens.Token = \
+                    tokens.Error(f"\033[31m"  # red color
+                                 f"File \"$fileName$\", line {head.line}\n"
+                                 f"\tSyntax error: Unknown token: {text[1]}"
+                                 f"\033[0m", tokens.Error.ErrorType.Error)
+                return [error] + fixMismatches(tail, file_contents)
         else:
             # Don't know what to do, generate an error
             error: tokens.Token = \
                 tokens.Error(f"\033[31m"  # red color
                              f"File \"$fileName$\", line {head.line}\n"
-                             f"\tUnknown token: {text[0]}"
+                             f"\tSyntax error: Unknown token: {text[0]}"
                              f"\033[0m", tokens.Error.ErrorType.Error)
             return [error] + fixMismatches(tail, file_contents)
 
