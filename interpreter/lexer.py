@@ -3,22 +3,14 @@ import re
 
 import tokens
 from high_order import foldL
+import instructions
 
 # Possible instructions for ARM Cortex M0 assembly
-INSTRUCTIONS = ["MOV", "LDR", "LDRH", "LDRB", "STR", "STRH", "STRB", "LDRSH", "LDRSB",
-                "PUSH", "POP", "LDM", "LDMIA", "STMIA",
-                "ADD", "ADC", "SUB", "SBC", "MUL",
-                "AND", "EOR", "ORR", "BIC", "MOVN",
-                "LSL", "LSR", "ASR", "ROR",
-                "SXTH", "SXTB", "UXTH", "UXTB",
-                "TST", "CMP", "CMN",
-                "REV", "REV16", "REVSH",
-                "B", "BX", "BL", "BLX",
-                "BCC", "BCS", "BEQ", "BGE", "BGT", "BHI", "BLE", "BLS", "BLT", "BMI", "BNE", "BPL", "BVC", "BVS"]
+INSTRUCTIONS = list(instructions.tokenFunctions.keys())
 
 # Regular expression with possible instructions
 R_INSTRUCTION = r"(?P<INSTRUCTION>" + \
-                foldL(lambda text, instr: text + "|" + instr+"", INSTRUCTIONS[0], INSTRUCTIONS[1:]) + \
+                foldL(lambda text, instr: text + "|" + instr, INSTRUCTIONS[0], INSTRUCTIONS[1:]) + \
                 ")|"
 
 # ^[^\d\W] matches a character that is a letter or a underscore at the start of the string
