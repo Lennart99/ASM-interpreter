@@ -27,6 +27,20 @@ class InstructionNode(Node):
         self.function = func
 
 
+class Label:
+    def __init__(self, name: str, section: Node.Section, address: int):
+        self.name = name
+        self.section: Node.Section = section
+        self.address: int = address
+
+    def __str__(self) -> str:
+        return "{}({}, {}, {})".\
+            format(type(self).__name__, self.name, self.section, self.address)
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
+
 class ErrorNode(Node):
     def __init__(self, message: str):
         super().__init__(Node.Section.TEXT, 0)

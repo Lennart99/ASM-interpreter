@@ -1,14 +1,30 @@
-from typing import Union, Any, Match, Callable, List, Dict, Iterator
+from typing import Union, Any, Match, Callable, List, Dict, Iterator, Tuple
 from copy import deepcopy
 
 
-class ProgramState:
-    def __init__(self, regs: List[int]):
-        self.registers: List[int] = regs
+class StatusRegister:
+    def __init__(self, n: bool = False, z: bool = False, c: bool = False, v: bool = False):
+        self.N: bool = n
+        self.Z: bool = z
+        self.C: bool = c
+        self.V: bool = v
 
     def __str__(self) -> str:
-        return "{}({})". \
-            format(type(self).__name__, self.registers)
+        return "{}({}, {}, {}, {})". \
+            format(type(self).__name__, self.N, self.Z, self.C, self.V)
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
+
+class ProgramState:
+    def __init__(self, regs: List[int], status: StatusRegister):
+        self.registers: List[int] = regs
+        self.status: StatusRegister = status
+
+    def __str__(self) -> str:
+        return "{}({}, {})". \
+            format(type(self).__name__, self.registers, self.status)
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -51,7 +67,18 @@ def getFromMem(state: ProgramState, adress: int, bitsize: int) -> int:
     return -1
 
 
+def storeInMem(state: ProgramState, adress: int, value: int, bitsize: int) -> ProgramState:
+    # TODO implement memory
+    pass
+
+
 # getLabelAddress:: ProgramState -> str -> int
 def getLabelAddress(state: ProgramState, label: str) -> int:
     # TODO implement memory
     return -1
+
+
+def setALUState(state: ProgramState, value: StatusRegister) -> ProgramState:
+    newState = deepcopy(state)
+    newState.status = value
+    return newState
