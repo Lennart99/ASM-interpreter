@@ -28,7 +28,7 @@ TOKEN_REGEX = re.compile(R_INSTRUCTION +
                          r"(?P<LD_IMMED_VALUE>"
                          r"=[ \t]*0x[0-9a-f]+|=[ \t]*0b[01]+|=[ \t]*'((\\[tnrfv])|(.))'|=[ \t]*[0-9]+)|"
                          r"(?P<ALIGN>\.align[ \t]*[1248])|"
-                         r"(?P<ASCII_ASCIZ>\.ascii|\.asciz)|"
+                         r"(?P<ASCII_ASCIZ>\.ascii|\.asciz|\.string)|"
                          r"(?P<SECTION>\.text|\.bss|\.data)|"
                          r"(?P<CPU>\.cpu[^\n]*)|"
                          r"(?P<GLOBAL>\.global)|"

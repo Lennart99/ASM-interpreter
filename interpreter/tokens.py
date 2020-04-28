@@ -159,8 +159,10 @@ def getIntValue(text: str, line: int) -> Union[int, ErrorToken]:
 def charToInt(text: str) -> int:
     # All checks are done already, just do the converting here
     if text[0] == '\\' and len(text) == 2:
-        text = text.replace('\\t', '\t').replace('\\n', '\n').\
-            replace('\\r', '\r').replace('\\f', '\f').replace('\\v', '\v')
+        text = text.replace('\\b', '\b').replace('\\f', '\f').replace('\\n', '\n').replace('\\r', '\r').\
+            replace('\\t', '\t').replace('\\"', '\"').replace('\\\\', '\\')
+        if text[1] == '0':
+            return 0
     return ord(text[0])
 
 
