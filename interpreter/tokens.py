@@ -137,7 +137,7 @@ class ErrorToken(Token):
         return self.message
 
 
-# getIntValue:: str -> int -> int|Error
+# getIntValue:: str -> int -> Either int Error
 def getIntValue(text: str, line: int) -> Union[int, ErrorToken]:
     if len(text) == 0:
         return ErrorToken(f"\033[31m"  # red color
@@ -166,7 +166,7 @@ def charToInt(text: str) -> int:
     return ord(text[0])
 
 
-# getCharValue:: str -> int -> str|Error
+# getCharValue:: str -> int -> Either str Error
 def getCharValue(text: str, line: int) -> Union[str, ErrorToken]:
     if len(text) == 0:
         return ErrorToken(f"\033[31m"  # red color
@@ -199,7 +199,7 @@ def getCharValue(text: str, line: int) -> Union[str, ErrorToken]:
         return text
 
 
-# createImmediateValue:: (str|int -> str -> int -> int -> Token) -> str -> int -> int -> Token
+# createImmediateValue:: (int -> str -> int -> int -> Token) -> str -> int -> int -> Token
 # constr is the constructor to call to generate the Token
 def createImmediateValue(constr: Callable[[int, str, int, int], Token],
                          contents: str, idx: int, line: int) -> Token:

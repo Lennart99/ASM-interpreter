@@ -52,7 +52,7 @@ def lastIndex(string: str, search: str) -> int:
         return lastIndex(string[:-1], search)
 
 
-# match_to_token:: Match -> String -> int -> Token | None
+# match_to_token:: Match -> String -> int -> Either Token None
 def match_to_token(match: Match[Union[str, Any]], file_contents: str, offset: int) -> Union[tokens.Token, None]:
     kind: str = match.lastgroup
     value: str = match.group()
