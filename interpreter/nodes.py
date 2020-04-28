@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, List
 from enum import Enum
 
 
@@ -36,6 +36,19 @@ class Label:
     def __str__(self) -> str:
         return "{}({}, {}, {})".\
             format(type(self).__name__, self.name, self.section, self.address)
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
+
+class StringNode(Node):
+    def __init__(self, section: Node.Section, line: int, contents: List[int]):
+        super().__init__(section, line)
+        self.contents: List[int] = contents
+
+    def __str__(self) -> str:
+        return "{}({}, {}, {})".\
+            format(type(self).__name__, self.line, self.section, self.contents)
 
     def __repr__(self) -> str:
         return self.__str__()

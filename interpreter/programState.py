@@ -1,5 +1,5 @@
-from typing import Union, Any, Match, Callable, List, Dict, Iterator, Tuple
 from copy import deepcopy
+from typing import List
 
 
 class StatusRegister:
