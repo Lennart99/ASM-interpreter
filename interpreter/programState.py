@@ -67,7 +67,7 @@ def getReg(state: ProgramState, name: str) -> int:
 
 # getFromMem:: ProgramState -> int -> int -> int
 # bitSize: the number of bits to load, either 32, 16 or 8 bit
-def getFromMem(state: ProgramState, address: int, bitsize: int) -> nodes.Node:
+def getDataFromMem(state: ProgramState, address: int, bitsize: int) -> int:
     # TODO check address is in range
     offset = address & 3
     if bitsize == 32 and offset != 0:
@@ -81,17 +81,34 @@ def getFromMem(state: ProgramState, address: int, bitsize: int) -> nodes.Node:
 
     word = state.memory[internal_address]
     if bitsize == 32:
-        return word
+        return word.value
     elif bitsize == 16:
-        return nodes.DataNode((word.value >> (1-offset)*16) & 0xFFFF)
+        # TODO check the node is a DataNode
+        return (word.value >> (1-offset)*16) & 0xFFFF
     elif bitsize == 8:
-        return nodes.DataNode((word.value >> (3-offset)*8) & 0xFF)
+        # TODO check the node is a DataNode
+        return (word.value >> (3-offset)*8) & 0xFF
     else:
-        print("BITSIZE")
         # TODO error - invalid bitsize
-        return nodes.DataNode(-1)
+        return -1
 
 
+# getFromMem:: ProgramState -> int -> int -> int
+# bitSize: the number of bits to load, either 32, 16 or 8 bit
+def getInstructionFromMem(state: ProgramState, address: int) -> nodes.Node:
+    # TODO check address is in range
+    if (address & 3) != 0:
+        # TODO err
+        pass
+
+    internal_address = address >> 2
+
+    word = state.memory[internal_address]
+    return word
+
+
+# storeInMem:: ProgramState -> int -> int -> int -> ProgramState
+# bitSize: the number of bits to store, either 32, 16 or 8 bit
 def storeInMem(state: ProgramState, address: int, value: int, bitsize: int) -> ProgramState:
     # TODO check address is in range
     newState = deepcopy(state)
@@ -107,9 +124,11 @@ def storeInMem(state: ProgramState, address: int, value: int, bitsize: int) -> P
     internal_address = address >> 2
 
     if bitsize == 32:
+        # TODO check the node is a DataNode and warn the user otherwise
         newState.memory[internal_address] = nodes.DataNode(value)
         return newState
     elif bitsize == 16:
+        # TODO check the node is a DataNode
         word = state.memory[internal_address].value
         newState.memory[internal_address] = nodes.DataNode(
             ((value << ((1 - offset) * 16)) & 0xFFFF) |
@@ -117,6 +136,7 @@ def storeInMem(state: ProgramState, address: int, value: int, bitsize: int) -> P
         )
         return newState
     elif bitsize == 8:
+        # TODO check the node is a DataNode
         word = state.memory[internal_address].value
         newState.memory[internal_address] = nodes.DataNode((
             ((value << ((3 - offset) * 8)) & 0xFF) |
@@ -124,7 +144,6 @@ def storeInMem(state: ProgramState, address: int, value: int, bitsize: int) -> P
         ) & 0xFFFFFFFF)
         return newState
     else:
-        print("BITSIZE")
         # TODO error - invalid bitsize
         return state
 
@@ -135,40 +154,56 @@ def getLabelAddress(state: ProgramState, label: str) -> int:
     return state.labels[label].address
 
 
+# setALUState:: ProgramState -> StatusRegister -> ProgramState
+# set the status register
 def setALUState(state: ProgramState, value: StatusRegister) -> ProgramState:
     newState = deepcopy(state)
     newState.status = value
     return newState
 
 
-def printAndReturn(state: ProgramState) -> ProgramState:
+# printAndReturn:: ProgramState -> ProgramState
+# Implementation of the 'print_char' subroutine
+# Note: prints a char to the default output
+def subroutine_print_char(state: ProgramState) -> ProgramState:
     r0 = getReg(state, "R0")
     print(chr(r0), end='')
     lr = getReg(state, "LR")
     return setReg(state, "PC", lr)
 
 
-def generateProgramState(context: programContext.ProgramContext, stackSize: int, startLabel: str) -> ProgramState:
-    text = context.text + [nodes.InstructionNode(nodes.Node.Section.TEXT, -1, printAndReturn)]
-    printlabel = nodes.Label("print_char", nodes.Node.Section.TEXT, len(text)-1)
+# convertLabelsToDict:: [label] -> int -> int -> int -> {str, label}
+# converts a list of labels to a dict of labels
+def convertLabelsToDict(labelList: List[nodes.Label], stackSize: int, textSize: int, bssSize: int) -> \
+        Dict[str, nodes.Label]:
+    if len(labelList) == 0:
+        return {}
+    label, *tail = labelList
 
-    mem: List[nodes.Node] = [nodes.DataNode(0) for _ in range(stackSize>>2)] + text + context.bss + context.data
+    if label.section == nodes.Node.Section.TEXT:
+        label = nodes.Label(label.name, label.section, stackSize + (4*label.address))
+    elif label.section == nodes.Node.Section.BSS:
+        label = nodes.Label(label.name, label.section, stackSize + (4*textSize) + (4*label.address))
+    elif label.section == nodes.Node.Section.DATA:
+        label = nodes.Label(label.name, label.section, stackSize + (4*textSize) + (4*bssSize) + (4*label.address))
+
+    res = convertLabelsToDict(tail, stackSize, textSize, bssSize)
+    res[label.name] = label
+    return res
+
+
+# generateProgramState:: ProgramContext -> int -> str -> ProgramState
+# Generate a ProgramState based on a ProgramContext
+def generateProgramState(context: programContext.ProgramContext, stackSize: int, startLabel: str) -> ProgramState:
+    text = context.text + [nodes.InstructionNode(nodes.Node.Section.TEXT, -1, subroutine_print_char)]
+
+    mem: List[nodes.Node] = [nodes.DataNode(0) for _ in range(stackSize >> 2)] + text + context.bss + context.data
     regs = [0 for _ in range(16)]
     regs[regToID("SP")] = stackSize
     status = StatusRegister(False, False, False, False)
-    labels = context.labels.copy()
-    labels["print_char"] = printlabel
+    labelList = context.labels + [nodes.Label("print_char", nodes.Node.Section.TEXT, len(context.text))]
 
-    # TODO no FP
-    for k in labels.keys():
-        label = labels[k]
-        if label.section == nodes.Node.Section.TEXT:
-            label.address = stackSize + 4*label.address
-        elif label.section == nodes.Node.Section.BSS:
-            label.address = stackSize + 4*len(text) + 4*label.address
-        elif label.section == nodes.Node.Section.DATA:
-            label.address = stackSize + (4*len(text)) + (4*len(context.bss)) + (4*label.address)
-        labels[k] = label
+    labels = convertLabelsToDict(labelList, stackSize, len(text), len(context.bss))
 
     regs[regToID("PC")] = labels[startLabel].address
     return ProgramState(regs, status, mem, labels)

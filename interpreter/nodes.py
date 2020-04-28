@@ -39,7 +39,7 @@ class InstructionNode(Node):
 
 class Label:
     def __init__(self, name: str, section: Node.Section, address: int):
-        self.name = name
+        self.name: str = name
         self.section: Node.Section = section
         self.address: int = address
 

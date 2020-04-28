@@ -116,7 +116,7 @@ def decodeLDR(tokenList: List[tokens.Token], section: nodes.Node.Section, bitSiz
             if isinstance(separator, tokens.Separator) and separator.contents == "]":
                 def ldrOneReg(state: programState.ProgramState) -> programState.ProgramState:
                     adr = programState.getReg(state, src1.contents)
-                    contents = programState.getFromMem(state, adr, bitSize).value
+                    contents = programState.getDataFromMem(state, adr, bitSize)
                     return programState.setReg(state, dest.contents, contents)
                 return nodes.InstructionNode(section, dest.line, ldrOneReg), tokenList
             elif isinstance(separator, tokens.Separator) and separator.contents == ",":
@@ -130,7 +130,7 @@ def decodeLDR(tokenList: List[tokens.Token], section: nodes.Node.Section, bitSiz
                     def ldrDualReg(state: programState.ProgramState) -> programState.ProgramState:
                         adr1 = programState.getReg(state, src1.contents)
                         adr2 = programState.getReg(state, src2.contents)
-                        contents = programState.getFromMem(state, adr1 + adr2, bitSize).value
+                        contents = programState.getDataFromMem(state, adr1 + adr2, bitSize)
                         return programState.setReg(state, dest.contents, contents)
                     return nodes.InstructionNode(section, dest.line, ldrDualReg), tokenList
                 elif isinstance(src2, tokens.ImmediateValue):
@@ -138,7 +138,7 @@ def decodeLDR(tokenList: List[tokens.Token], section: nodes.Node.Section, bitSiz
 
                     def ldrRegImmed(state: programState.ProgramState) -> programState.ProgramState:
                         adr = programState.getReg(state, src1.contents)
-                        contents = programState.getFromMem(state, adr + src2.value, bitSize).value
+                        contents = programState.getDataFromMem(state, adr + src2.value, bitSize)
                         return programState.setReg(state, dest.contents, contents)
                     return nodes.InstructionNode(section, dest.line, ldrRegImmed), tokenList
                 else:
@@ -231,7 +231,7 @@ def decodePOP(tokenList: List[tokens.Token], section: nodes.Node.Section) -> Tup
 
         address = programState.getReg(state, "SP")
         # TODO check address is in 0...(stacksize-4) - stacksize-4 because we add 4 later on
-        val = programState.getFromMem(state, address, 32).value
+        val = programState.getDataFromMem(state, address, 32)
         state = programState.setReg(state, head.contents, val)
         state = programState.setReg(state, "SP", address + 4)
         return pop(state, tail)
@@ -270,7 +270,7 @@ def decodeALUInstruction(tokenList: List[tokens.Token], section: nodes.Node.Sect
             arg2 = arg1
         else:
             # Wrong token, generate an error
-            return generateUnexpectedTokenError(seperator2.line, seperator2.contents, "','"), \
+            return generateUnexpectedTokenError(seperator2.line, seperator2.contents, "',' or End of line"), \
                    advanceToNewline(tokenList)
 
     if not isinstance(arg1, tokens.Register):
@@ -344,7 +344,7 @@ def decodeADD(tokenList: List[tokens.Token], section: nodes.Node.Section) -> Tup
             v = False
 
         c = bool((out >> 32) & 1)
-        n = bit31
+        n = bool(bit31)
         z = out == 0
 
         state = programState.setReg(state, target, out32)
@@ -372,7 +372,7 @@ def decodeCMP(tokenList: List[tokens.Token], section: nodes.Node.Section) -> Tup
             v = False
 
         c = bool((out >> 32) & 1)
-        n = bit31
+        n = bool(bit31)
         z = out == 0
 
         # discard the result
@@ -481,18 +481,20 @@ tokenFunctions: Dict[str, Callable[[List[tokens.Token], nodes.Node.Section], Tup
     "BX": None,
     "BLX": None,
 
-    "BCC": None,
-    "BCS": None,
+    "BCC": lambda a, b: decodeBranch(a, b, lambda status: not status.C),
+    "BCLO": lambda a, b: decodeBranch(a, b, lambda status: not status.C),
+    "BCS": lambda a, b: decodeBranch(a, b, lambda status: status.C),
+    "BHS": lambda a, b: decodeBranch(a, b, lambda status: status.C),
     "BEQ": lambda a, b: decodeBranch(a, b, lambda status: status.Z),
-    "BGE": None,
-    "BGT": None,
-    "BHI": None,
-    "BLE": None,
+    "BGE": lambda a, b: decodeBranch(a, b, lambda status: status.N == status.V),
+    "BGT": lambda a, b: decodeBranch(a, b, lambda status: (not status.Z) and (status.N == status.V)),
+    "BHI": lambda a, b: decodeBranch(a, b, lambda status: (not status.Z) and status.C),
+    "BLE": lambda a, b: decodeBranch(a, b, lambda status: status.Z or (status.N != status.V)),
     "BLS": lambda a, b: decodeBranch(a, b, lambda status: (not status.C) or status.Z),
-    "BLT": None,
-    "BMI": None,
-    "BNE": None,
-    "BPL": None,
-    "BVC": None,
-    "BVS": None
+    "BLT": lambda a, b: decodeBranch(a, b, lambda status: (status.N != status.V)),
+    "BMI": lambda a, b: decodeBranch(a, b, lambda status: status.N),
+    "BNE": lambda a, b: decodeBranch(a, b, lambda status: (not status.Z)),
+    "BPL": lambda a, b: decodeBranch(a, b, lambda status: not status.N),
+    "BVC": lambda a, b: decodeBranch(a, b, lambda status: not status.V),
+    "BVS": lambda a, b: decodeBranch(a, b, lambda status: status.V)
 }

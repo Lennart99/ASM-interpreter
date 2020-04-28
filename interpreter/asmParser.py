@@ -137,7 +137,7 @@ def decodeGlobal(tokenList: List[tokens.Token]) -> Tuple[Union[List[str], nodes.
 
 
 # NOTE make sure to not have any ErrorTokens in the iterator
-def parse(tokenList: List[tokens.Token], context: ProgramContext = ProgramContext([], [], [], {}, []),
+def parse(tokenList: List[tokens.Token], context: ProgramContext = ProgramContext([], [], [], [], []),
           section: nodes.Node.Section = nodes.Node.Section.TEXT) -> ProgramContext:
     if len(tokenList) == 0:
         return context
@@ -163,8 +163,7 @@ def parse(tokenList: List[tokens.Token], context: ProgramContext = ProgramContex
                 nextAddress = -1
             # Generate a new label dict
             label = nodes.Label(head.contents, section, nextAddress)
-            labels = context.labels.copy()
-            labels.update({label.name: label})
+            labels = context.labels + [label]
             # Generate new context and call parse() with remaining tokens
             return parse(tokenList,
                          ProgramContext(context.text.copy(), context.bss.copy(), context.data.copy(), labels,
@@ -204,8 +203,7 @@ def parse(tokenList: List[tokens.Token], context: ProgramContext = ProgramContex
 
             # Generate a new label dict
             label = nodes.Label(head.contents, section, nextAddress)
-            labels = context.labels.copy()
-            labels.update({label.name: label})
+            labels = context.labels + [label]
             # Generate new context and call parse() with remaining tokens
             return parse(tokenList,
                          ProgramContext(context.text.copy(), context.bss.copy(), context.data.copy(),
@@ -275,10 +273,3 @@ def printErrors(context: ProgramContext, fileName: str) -> bool:
     errCount += sum(list(map(lambda a: printAndReturn(a, fileName), context.data)))
 
     return errCount > 0
-
-
-def removeErrors(context: ProgramContext) -> ProgramContext:
-    text = list(filter(lambda a: not isinstance(a, nodes.ErrorNode), context.text))
-    bss = list(filter(lambda a: not isinstance(a, nodes.ErrorNode), context.bss))
-    data = list(filter(lambda a: not isinstance(a, nodes.ErrorNode), context.data))
-    return ProgramContext(text, bss, data, context.labels, context.globalLabels)

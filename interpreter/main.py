@@ -17,25 +17,19 @@ loadedTokens: List[tokens.Token] = lexer.fixMismatches(loadedTokens, file_conten
 if lexer.printErrors(loadedTokens, "program.asm"):
     exit(-1)
 
-nodeList = asmParser.parse(loadedTokens)
-errCount = asmParser.printErrors(nodeList, "program.asm")
+context = asmParser.parse(loadedTokens)
+errCount = asmParser.printErrors(context, "program.asm")
 if errCount > 0:
     exit(-1)
-nodeList = asmParser.removeErrors(nodeList)
 
-state = programState.generateProgramState(nodeList, 0x400, "_start")
+state = programState.generateProgramState(context, 0x400, "_start")
 print(state)
 print(state.memory)
 while True:
-    node = programState.getFromMem(state, programState.getReg(state, "PC"), 32)
+    node: nodes.InstructionNode = programState.getInstructionFromMem(state, programState.getReg(state, "PC"))
     if isinstance(node, nodes.InstructionNode):
-        # print()
-        # print(node)
-        # print(node.function)
         state = node.function(state)
         state = programState.setReg(state, "PC", programState.getReg(state, "PC") + 4)
-        # print(state)
-        # print(state.memory)
     if programState.getReg(state, "PC") < 0x400:
         break
 
