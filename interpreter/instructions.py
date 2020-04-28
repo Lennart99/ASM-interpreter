@@ -11,7 +11,7 @@ def generateUnexpectedTokenError(line: int, contents: str, expected: str) -> nod
     return nodes.ErrorNode(f"\033[31m"  # red color
                            f"File \"$fileName$\", line {line}\n"
                            f"\tSyntax error: Unexpected token: '{contents}', expected {expected}"
-                           f"\033[0m")
+                           f"\033[0m\n")
 
 
 # generateToFewTokensError:: int -> str -> ErrorNode
@@ -21,12 +21,12 @@ def generateToFewTokensError(line: int, instruction: str) -> nodes.ErrorNode:
         return nodes.ErrorNode(f"\033[31m"  # red color
                                f"File \"$fileName$\", at the last line\n"
                                f"\tSyntax error: To few tokens to finish the {instruction}"
-                               f"\033[0m")
+                               f"\033[0m\n")
     else:
         return nodes.ErrorNode(f"\033[31m"  # red color
                                f"File \"$fileName$\", line {line}\n"
                                f"\tSyntax error: To few tokens to finish the {instruction}"
-                               f"\033[0m")
+                               f"\033[0m\n")
 
 
 # advanceToNewline:: [Token] -> [Token]
@@ -116,7 +116,7 @@ def decodeLDR(tokenList: List[tokens.Token], section: nodes.Node.Section, bitSiz
             if isinstance(separator, tokens.Separator) and separator.contents == "]":
                 def ldrOneReg(state: programState.ProgramState) -> programState.ProgramState:
                     adr = programState.getReg(state, src1.contents)
-                    contents = programState.getFromMem(state, adr, bitSize)
+                    contents = programState.getFromMem(state, adr, bitSize).value
                     return programState.setReg(state, dest.contents, contents)
                 return nodes.InstructionNode(section, dest.line, ldrOneReg), tokenList
             elif isinstance(separator, tokens.Separator) and separator.contents == ",":
@@ -130,7 +130,7 @@ def decodeLDR(tokenList: List[tokens.Token], section: nodes.Node.Section, bitSiz
                     def ldrDualReg(state: programState.ProgramState) -> programState.ProgramState:
                         adr1 = programState.getReg(state, src1.contents)
                         adr2 = programState.getReg(state, src2.contents)
-                        contents = programState.getFromMem(state, adr1 + adr2, bitSize)
+                        contents = programState.getFromMem(state, adr1 + adr2, bitSize).value
                         return programState.setReg(state, dest.contents, contents)
                     return nodes.InstructionNode(section, dest.line, ldrDualReg), tokenList
                 elif isinstance(src2, tokens.ImmediateValue):
@@ -138,7 +138,7 @@ def decodeLDR(tokenList: List[tokens.Token], section: nodes.Node.Section, bitSiz
 
                     def ldrRegImmed(state: programState.ProgramState) -> programState.ProgramState:
                         adr = programState.getReg(state, src1.contents)
-                        contents = programState.getFromMem(state, adr + src2.value, bitSize)
+                        contents = programState.getFromMem(state, adr + src2.value, bitSize).value
                         return programState.setReg(state, dest.contents, contents)
                     return nodes.InstructionNode(section, dest.line, ldrRegImmed), tokenList
                 else:
@@ -231,7 +231,7 @@ def decodePOP(tokenList: List[tokens.Token], section: nodes.Node.Section) -> Tup
 
         address = programState.getReg(state, "SP")
         # TODO check address is in 0...(stacksize-4) - stacksize-4 because we add 4 later on
-        val = programState.getFromMem(state, address, 32)
+        val = programState.getFromMem(state, address, 32).value
         state = programState.setReg(state, head.contents, val)
         state = programState.setReg(state, "SP", address + 4)
         return pop(state, tail)
@@ -263,7 +263,7 @@ def decodeALUInstruction(tokenList: List[tokens.Token], section: nodes.Node.Sect
         # Wrong token, generate an error
         return generateUnexpectedTokenError(seperator1.line, seperator1.contents, "','"), advanceToNewline(tokenList)
     if not (isinstance(seperator2, tokens.Separator) and seperator2.contents == ","):
-        if isinstance(seperator2, tokens.NewLine):
+        if isinstance(seperator2, tokens.NewLine) or isinstance(seperator2, tokens.Comment):
             tokenList = [seperator2, arg3] + tokenList
             # move arg2 to arg3 and copy arg1 to arg2
             arg3 = arg2
@@ -303,12 +303,15 @@ def decodeALUInstruction(tokenList: List[tokens.Token], section: nodes.Node.Sect
 # decodeSUB:: Iterator[tokens.Token] -> Node.Section -> Node
 # decode the SUB instruction
 def decodeSUB(tokenList: List[tokens.Token], section: nodes.Node.Section) -> Tuple[nodes.Node, List[tokens.Token]]:
-    def add(state: programState.ProgramState, a: int, b: int, target: str) -> programState.ProgramState:
-        out = a - b
+    def sub(state: programState.ProgramState, a: int, b: int, target: str) -> programState.ProgramState:
+        minusB = ((~b)+1) & 0xFFFFFFFF
+        out = a + minusB
         out32 = out & 0xFFFFFFFF
         bit31 = (out32 >> 31) & 1
 
-        if bit31 != int(out < 0):
+        signA = (a >> 31) & 1
+        signB = (minusB >> 31) & 1
+        if signA == signB and signB != bit31:
             v = True
         else:
             v = False
@@ -322,7 +325,7 @@ def decodeSUB(tokenList: List[tokens.Token], section: nodes.Node.Section) -> Tup
 
         return state
 
-    return decodeALUInstruction(tokenList, section, add, "ADD")
+    return decodeALUInstruction(tokenList, section, sub, "SUB")
 
 
 # decodeADD:: Iterator[tokens.Token] -> Node.Section -> Node
@@ -333,13 +336,15 @@ def decodeADD(tokenList: List[tokens.Token], section: nodes.Node.Section) -> Tup
         out32 = out & 0xFFFFFFFF
         bit31 = (out32 >> 31) & 1
 
-        if bit31 != int(out < 0):
+        signA = (a >> 31) & 1
+        signB = (b >> 31) & 1
+        if signA == signB and signB != bit31:
             v = True
         else:
             v = False
 
         c = bool((out >> 32) & 1)
-        n = out < 0
+        n = bit31
         z = out == 0
 
         state = programState.setReg(state, target, out32)
@@ -353,18 +358,21 @@ def decodeADD(tokenList: List[tokens.Token], section: nodes.Node.Section) -> Tup
 # decodeCMP:: Iterator[tokens.Token] -> Node.Section -> Node
 # decode the CMP instruction
 def decodeCMP(tokenList: List[tokens.Token], section: nodes.Node.Section) -> Tuple[nodes.Node, List[tokens.Token]]:
-    def add(state: programState.ProgramState, a: int, b: int, target: str) -> programState.ProgramState:
-        out = a - b
+    def cmp(state: programState.ProgramState, a: int, b: int, target: str) -> programState.ProgramState:
+        minusB = ((~b) + 1) & 0xFFFFFFFF
+        out = a + minusB
         out32 = out & 0xFFFFFFFF
         bit31 = (out32 >> 31) & 1
 
-        if bit31 != int(out < 0):
+        signA = (a >> 31) & 1
+        signB = (minusB >> 31) & 1
+        if signA == signB and signB != bit31:
             v = True
         else:
             v = False
 
         c = bool((out >> 32) & 1)
-        n = out < 0
+        n = bit31
         z = out == 0
 
         # discard the result
@@ -373,7 +381,7 @@ def decodeCMP(tokenList: List[tokens.Token], section: nodes.Node.Section) -> Tup
 
         return state
 
-    return decodeALUInstruction(tokenList, section, add, "ADD")
+    return decodeALUInstruction(tokenList, section, cmp, "CMP")
 
 
 # decodeB:: Iterator[tokens.Token] -> Node.Section -> Node
@@ -386,9 +394,9 @@ def decodeBranch(tokenList: List[tokens.Token], section: nodes.Node.Section,
     if isinstance(label, tokens.Label):
         def branchTo(state: programState.ProgramState) -> programState.ProgramState:
             if condition(state.status):
-                address = programState.getFromMem(state, label.contents, 32)
+                address = programState.getLabelAddress(state, label.contents)
 
-                return programState.setReg(state, "PC", address)
+                return programState.setReg(state, "PC", address-4)
             else:
                 return state
 
@@ -408,10 +416,10 @@ def decodeBL(tokenList: List[tokens.Token], section: nodes.Node.Section) -> Tupl
         def branchTo(state: programState.ProgramState) -> programState.ProgramState:
             # Save return address in LR
             pc = programState.getReg(state, "PC")
-            state = programState.setReg(state, "LR", pc+4)
+            state = programState.setReg(state, "LR", pc)
 
-            address = programState.getFromMem(state, label.contents, 32)
-            return programState.setReg(state, "PC", address)
+            address = programState.getLabelAddress(state, label.contents)
+            return programState.setReg(state, "PC", address-4)
 
         return nodes.InstructionNode(section, label.line, branchTo), tokenList
     else:

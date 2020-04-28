@@ -1,26 +1,10 @@
-from typing import Union, Callable, List, Dict, Tuple
+from typing import Union, Callable, List, Tuple
 
 import instructions
 import nodes
 import tokens
 from high_order import foldR1
-
-
-class ProgramContext:
-    def __init__(self, text: List[nodes.Node], bss: List[nodes.Node], data: List[nodes.Node],
-                 labels: Dict[str, nodes.Label], globalLabels: List[str]):
-        self.text: List[nodes.Node] = text
-        self.bss:  List[nodes.Node] = bss
-        self.data: List[nodes.Node] = data
-        self.labels: Dict[str, nodes.Label] = labels
-        self.globalLabels: List[str] = globalLabels
-
-    def __str__(self) -> str:
-        return ".text: {} \n.bss: {} \n.data: {} \nLabels: {} \nGlobal labels: {}". \
-            format(self.text, self.bss, self.data, self.labels, self.globalLabels)
-
-    def __repr__(self) -> str:
-        return self.__str__()
+from programContext import ProgramContext
 
 
 # addNodeToProgramContext:: ProgramContext -> Node _> Node.Section -> ProgramContext
@@ -84,7 +68,7 @@ def bytesToInt(bytes: List[int]) -> List[int]:
     else:  # len(bytes) == 0
         return []
 
-    res = (first << 24) | (second << 16) | (third << 8) | fourth
+    res = ((first&0xFF) << 24) | ((second&0xFF) << 16) | ((third&0xFF) << 8) | (fourth&0xFF)
     if len(bytes) > 0:
         return [res] + bytesToInt(bytes)
     else:
@@ -93,16 +77,16 @@ def bytesToInt(bytes: List[int]) -> List[int]:
 
 # decodeStringLiteral:: Token -> [Token] -> Node.Section -> (Node, [Token])
 def decodeStringLiteral(directive: tokens.Token, tokenList: List[tokens.Token], section: nodes.Node.Section) -> \
-        Tuple[nodes.Node, List[tokens.Token]]:
+        Tuple[List[nodes.Node], List[tokens.Token]]:
     text = directive.contents.lower()
     addTermination = text in [".asciz", ".string"]
 
     if len(tokenList) == 0:
-        return instructions.generateToFewTokensError(directive.line, text + " directive"), tokenList
+        return [instructions.generateToFewTokensError(directive.line, text + " directive")], tokenList
 
     strings, tokenList = getStringTokens(tokenList)
     if isinstance(strings, nodes.ErrorNode):
-        return strings, tokenList
+        return [strings], tokenList
 
     # replaces escaped characters line /r, /n and /0
     def replaceEscapedChars(string: str) -> str:
@@ -113,14 +97,15 @@ def decodeStringLiteral(directive: tokens.Token, tokenList: List[tokens.Token], 
 
     if addTermination:
         # Add 0 after each string
-        lists = list(map(lambda s: list(map(lambda c: ord(c), replaceEscapedChars(s + "\\0"))), strings))
+        lists = list(map(lambda s: list(map(lambda c: ord(c), replaceEscapedChars(s.contents[1:-1] + "\\0"))), strings))
     else:
-        lists = list(map(lambda s: list(map(lambda c: ord(c), replaceEscapedChars(s))), strings))
+        lists = list(map(lambda s: list(map(lambda c: ord(c), replaceEscapedChars(s.contents[1:-1]))), strings))
 
     lst = foldR1(lambda a, b: a + b, lists)
     lst = bytesToInt(lst)
+    dataNodes = list(map(lambda x: nodes.DataNode(x, section, directive.line), lst))
 
-    return nodes.StringNode(section, directive.line, lst), tokenList
+    return dataNodes, tokenList
 
 
 # decodeGlobal:: [Token] -> ([String], [Token])
@@ -197,7 +182,7 @@ def parse(tokenList: List[tokens.Token], context: ProgramContext = ProgramContex
                 err = nodes.ErrorNode(f"\033[31m"  # red color
                                        f"File \"$fileName$\", line {head.line}\n"
                                        f"\tSyntax error: Unsupported instruction: '{head.contents}'"
-                                       f"\033[0m")
+                                       f"\033[0m\n")
                 return parse(instructions.advanceToNewline(tokenList),
                              addNodeToProgramContext(context, err, section), section)
     elif isinstance(head, tokens.Label) or isinstance(head, tokens.Register):
@@ -210,9 +195,9 @@ def parse(tokenList: List[tokens.Token], context: ProgramContext = ProgramContex
             if section == nodes.Node.Section.TEXT:
                 nextAddress = len(context.text)
             elif section == nodes.Node.Section.BSS:
-                nextAddress = len(context.text)
+                nextAddress = len(context.bss)
             elif section == nodes.Node.Section.DATA:
-                nextAddress = len(context.text)
+                nextAddress = len(context.data)
             else:
                 # never happens
                 nextAddress = -1
@@ -240,8 +225,17 @@ def parse(tokenList: List[tokens.Token], context: ProgramContext = ProgramContex
             # never happens because of the regular expressions
             pass
     elif isinstance(head, tokens.AsciiAsciz):
-        node, tokenList = decodeStringLiteral(head.contents, tokenList, section)
-        return parse(tokenList, addNodeToProgramContext(context, node, section), section)
+        dataNodes, tokenList = decodeStringLiteral(head, tokenList, section)
+        if section == nodes.Node.Section.TEXT:
+            context = ProgramContext(context.text + dataNodes, context.bss.copy(), context.data.copy(),
+                                     context.labels.copy(), context.globalLabels.copy())
+        elif section == nodes.Node.Section.BSS:
+            context = ProgramContext(context.text.copy(), context.bss + dataNodes, context.data.copy(),
+                                     context.labels.copy(), context.globalLabels.copy())
+        elif section == nodes.Node.Section.DATA:
+            context = ProgramContext(context.text.copy(), context.bss.copy(), context.data + dataNodes,
+                                     context.labels.copy(), context.globalLabels.copy())
+        return parse(tokenList, context, section)
     elif isinstance(head, tokens.Global):
         globalLabels, tokenList = decodeGlobal(tokenList)
         if isinstance(globalLabels, nodes.ErrorNode):
@@ -254,6 +248,37 @@ def parse(tokenList: List[tokens.Token], context: ProgramContext = ProgramContex
     elif isinstance(head, tokens.Comment) or isinstance(head, tokens.ErrorToken) or isinstance(head, tokens.NewLine):
         # skip
         return parse(tokenList, context, section)
+    elif isinstance(head, tokens.Cpu) or isinstance(head, tokens.Align):
+        # skip
+        return parse(instructions.advanceToNewline(tokenList), context, section)
     else:
         # error
-        print("ERR", head)
+        err = instructions.generateUnexpectedTokenError(head.line, head.contents, "End of line")
+        return parse(tokenList, addNodeToProgramContext(context, err, section), section)
+
+
+# printAndReturn:: Token -> String -> ErrorType
+# Prints the error and returns the error type
+def printAndReturn(node: nodes.Node, fileName: str) -> int:
+    if isinstance(node, nodes.ErrorNode):
+        print(node.message.replace("$fileName$", fileName))
+        return 1
+    return 0
+
+
+# printErrors:: [Token] -> String -> boolean
+# Print all errors and returns True when the program should exit
+def printErrors(context: ProgramContext, fileName: str) -> bool:
+
+    errCount = sum(list(map(lambda a: printAndReturn(a, fileName), context.text)))
+    errCount += sum(list(map(lambda a: printAndReturn(a, fileName), context.bss)))
+    errCount += sum(list(map(lambda a: printAndReturn(a, fileName), context.data)))
+
+    return errCount > 0
+
+
+def removeErrors(context: ProgramContext) -> ProgramContext:
+    text = list(filter(lambda a: not isinstance(a, nodes.ErrorNode), context.text))
+    bss = list(filter(lambda a: not isinstance(a, nodes.ErrorNode), context.bss))
+    data = list(filter(lambda a: not isinstance(a, nodes.ErrorNode), context.data))
+    return ProgramContext(text, bss, data, context.labels, context.globalLabels)

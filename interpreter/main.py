@@ -1,33 +1,42 @@
-from typing import Union, Any, Match, Callable, List, Dict, Iterator
+from typing import List
 
-import lexer
-from high_order import foldR1
-import tokens
 import asmParser
-import programState
+import lexer
 import nodes
+import programState
+import tokens
+from high_order import foldR1
 
-# file = open("program.asm", "r")
-#
-# file_contents: str = foldR1(lambda X, Y: X+Y, file.readlines())
-# print(file_contents)
+file = open("program.asm", "r")
 
-loadedTokens = lexer.lexFile("MOV R0, #0xFFFF\n"
-                             "MOV R1, #0xFF")
-loadedTokens: List[tokens.Token] = lexer.fixMismatches(loadedTokens, "MOV R0, #1\n"
-                                                                     "MOV R1, #3")
+file_contents: str = foldR1(lambda X, Y: X+Y, file.readlines())
+
+loadedTokens = lexer.lexFile(file_contents)
+loadedTokens: List[tokens.Token] = lexer.fixMismatches(loadedTokens, file_contents)
 
 if lexer.printErrors(loadedTokens, "program.asm"):
     exit(-1)
 
 nodeList = asmParser.parse(loadedTokens)
+errCount = asmParser.printErrors(nodeList, "program.asm")
+if errCount > 0:
+    exit(-1)
+nodeList = asmParser.removeErrors(nodeList)
 
-state = programState.ProgramState([0 for _ in range(16)])
+state = programState.generateProgramState(nodeList, 0x400, "_start")
 print(state)
-for node in nodeList:
+print(state.memory)
+while True:
+    node = programState.getFromMem(state, programState.getReg(state, "PC"), 32)
     if isinstance(node, nodes.InstructionNode):
+        # print()
+        # print(node)
+        # print(node.function)
         state = node.function(state)
-        print(state)
-    if isinstance(node, nodes.ErrorNode):
-        print(node)
+        state = programState.setReg(state, "PC", programState.getReg(state, "PC") + 4)
+        # print(state)
+        # print(state.memory)
+    if programState.getReg(state, "PC") < 0x400:
+        break
+
 

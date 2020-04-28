@@ -20,6 +20,16 @@ class Node:
         return self.__str__()
 
 
+class DataNode(Node):
+    def __init__(self, val: int, section: Node.Section = Node.Section.BSS, line: int = -1):
+        super().__init__(section, line)
+        self.value = val
+
+    def __str__(self) -> str:
+        return "{}({})".\
+            format(type(self).__name__, hex(self.value))
+
+
 class InstructionNode(Node):
     # TODO Callable typing
     def __init__(self, section: Node.Section, line: int, func: Callable):
@@ -56,7 +66,7 @@ class StringNode(Node):
 
 class ErrorNode(Node):
     def __init__(self, message: str):
-        super().__init__(Node.Section.TEXT, 0)
+        super().__init__(Node.Section.TEXT, -1)
         self.message: str = message
 
     def __str__(self) -> str:
