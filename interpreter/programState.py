@@ -178,8 +178,7 @@ def subroutine_print_char(state: ProgramState) -> ProgramState:
 
 # convertLabelsToDict:: [label] -> int -> int -> int -> {str, label}
 # converts a list of labels to a dict of labels
-def convertLabelsToDict(labelList: List[nodes.Label], stackSize: int, textSize: int, bssSize: int) -> \
-        Dict[str, nodes.Label]:
+def convertLabelsToDict(labelList: List[nodes.Label], stackSize: int, textSize: int, bssSize: int) -> Dict[str, nodes.Label]:
     if len(labelList) == 0:
         return {}
     label, *tail = labelList

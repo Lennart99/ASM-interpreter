@@ -23,8 +23,7 @@ def addNodeToProgramContext(context: ProgramContext, node: nodes.Node, section: 
 
 # getStringTokens:: [Token] -> (Either [StringLiteral] ErrorNode, [Token])
 # gets the StringLiteral tokens for the decodeStringLiteral function
-def getStringTokens(tokenList: List[tokens.Token]) -> \
-        Tuple[Union[List[tokens.StringLiteral], nodes.ErrorNode], List[tokens.Token]]:
+def getStringTokens(tokenList: List[tokens.Token]) -> Tuple[Union[List[tokens.StringLiteral], nodes.ErrorNode], List[tokens.Token]]:
     if len(tokenList) == 0:
         return [], []
     string, *tokenList = tokenList
@@ -39,16 +38,13 @@ def getStringTokens(tokenList: List[tokens.Token]) -> \
                     return res, tokenList
                 return [string] + res, tokenList
             else:
-                return instructions.generateUnexpectedTokenError(sep.line, sep.contents, "','"), \
-                       instructions.advanceToNewline(tokenList)
+                return instructions.generateUnexpectedTokenError(sep.line, sep.contents, "','"), instructions.advanceToNewline(tokenList)
         else:
             return [string], tokenList
     else:
         if isinstance(string, tokens.NewLine):
-            return instructions.generateUnexpectedTokenError(string.line, "newline", "a string literal"), \
-                   instructions.advanceToNewline(tokenList)
-        return instructions.generateUnexpectedTokenError(string.line, string.contents, "a string literal"), \
-            instructions.advanceToNewline(tokenList)
+            return instructions.generateUnexpectedTokenError(string.line, "newline", "a string literal"), instructions.advanceToNewline(tokenList)
+        return instructions.generateUnexpectedTokenError(string.line, string.contents, "a string literal"), instructions.advanceToNewline(tokenList)
 
 
 # bytesToInt:: [int] -> [int]
@@ -76,8 +72,7 @@ def bytesToInt(bytes: List[int]) -> List[int]:
 
 
 # decodeStringLiteral:: Token -> [Token] -> Node.Section -> (Node, [Token])
-def decodeStringLiteral(directive: tokens.Token, tokenList: List[tokens.Token], section: nodes.Node.Section) -> \
-        Tuple[List[nodes.Node], List[tokens.Token]]:
+def decodeStringLiteral(directive: tokens.Token, tokenList: List[tokens.Token], section: nodes.Node.Section) -> Tuple[List[nodes.Node], List[tokens.Token]]:
     text = directive.contents.lower()
     addTermination = text in [".asciz", ".string"]
 
@@ -124,16 +119,13 @@ def decodeGlobal(tokenList: List[tokens.Token]) -> Tuple[Union[List[str], nodes.
                     return res, tokenList
                 return [label.contents] + res, tokenList
             else:
-                return instructions.generateUnexpectedTokenError(sep.line, sep.contents, "','"), \
-                       instructions.advanceToNewline(tokenList)
+                return instructions.generateUnexpectedTokenError(sep.line, sep.contents, "','"), instructions.advanceToNewline(tokenList)
         else:
             return [label.contents], tokenList
     else:
         if isinstance(label, tokens.NewLine):
-            return instructions.generateUnexpectedTokenError(label.line, "newline", "a label"), \
-                   instructions.advanceToNewline(tokenList)
-        return instructions.generateUnexpectedTokenError(label.line, label.contents, "a label"), \
-            instructions.advanceToNewline(tokenList)
+            return instructions.generateUnexpectedTokenError(label.line, "newline", "a label"), instructions.advanceToNewline(tokenList)
+        return instructions.generateUnexpectedTokenError(label.line, label.contents, "a label"), instructions.advanceToNewline(tokenList)
 
 
 # NOTE make sure to not have any ErrorTokens in the iterator
@@ -171,19 +163,17 @@ def parse(tokenList: List[tokens.Token], context: ProgramContext = ProgramContex
         else:
             # It is an actual instruction
             opCode: str = head.contents.upper()
-            func: Callable[[List[tokens.Token], nodes.Node.Section], Tuple[nodes.Node, List[tokens.Token]]] = \
-                instructions.tokenFunctions[opCode]
+            func: Callable[[List[tokens.Token], nodes.Node.Section], Tuple[nodes.Node, List[tokens.Token]]] = instructions.tokenFunctions[opCode]
             if func is not None:
                 node, tokenList = func(tokenList, section)
                 return parse(tokenList, addNodeToProgramContext(context, node, section), section)
             else:
                 # Instruction not implemented
                 err = nodes.ErrorNode(f"\033[31m"  # red color
-                                       f"File \"$fileName$\", line {head.line}\n"
-                                       f"\tSyntax error: Unsupported instruction: '{head.contents}'"
-                                       f"\033[0m\n")
-                return parse(instructions.advanceToNewline(tokenList),
-                             addNodeToProgramContext(context, err, section), section)
+                                      f"File \"$fileName$\", line {head.line}\n"
+                                      f"\tSyntax error: Unsupported instruction: '{head.contents}'"
+                                      f"\033[0m\n")
+                return parse(instructions.advanceToNewline(tokenList), addNodeToProgramContext(context, err, section), section)
     elif isinstance(head, tokens.Label) or isinstance(head, tokens.Register):
         if len(tokenList) == 0:
             err = instructions.generateUnexpectedTokenError(head.line, "End of File", "':'")
@@ -243,7 +233,7 @@ def parse(tokenList: List[tokens.Token], context: ProgramContext = ProgramContex
                      ProgramContext(context.text.copy(), context.bss.copy(), context.data.copy(),
                                     context.labels.copy(), context.globalLabels + globalLabels),
                      section)
-    elif isinstance(head, tokens.Comment) or isinstance(head, tokens.ErrorToken) or isinstance(head, tokens.NewLine):
+    elif isinstance(head, tokens.ErrorToken) or isinstance(head, tokens.NewLine):
         # skip
         return parse(tokenList, context, section)
     elif isinstance(head, tokens.Cpu) or isinstance(head, tokens.Align):

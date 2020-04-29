@@ -4,8 +4,7 @@ import nodes
 
 
 class ProgramContext:
-    def __init__(self, text: List[nodes.Node], bss: List[nodes.Node], data: List[nodes.Node],
-                 labels: List[nodes.Label], globalLabels: List[str]):
+    def __init__(self, text: List[nodes.Node], bss: List[nodes.Node], data: List[nodes.Node], labels: List[nodes.Label], globalLabels: List[str]):
         self.text: List[nodes.Node] = text
         self.bss:  List[nodes.Node] = bss
         self.data: List[nodes.Node] = data
