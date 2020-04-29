@@ -31,7 +31,8 @@ class DataNode(Node):
 
 
 class InstructionNode(Node):
-    # TODO Callable typing
+    # InstructionNode:: Node.Section -> int -> (ProgramState -> ProgramState) -> InstructionNode
+    # can't add type parameters to func because of a circular import
     def __init__(self, section: Node.Section, line: int, func: Callable):
         super().__init__(section, line)
         self.function = func

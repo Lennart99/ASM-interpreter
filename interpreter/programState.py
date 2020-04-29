@@ -95,7 +95,7 @@ def getDataFromMem(state: ProgramState, address: int, bitsize: int) -> int:
 
 # getFromMem:: ProgramState -> int -> int -> int
 # bitSize: the number of bits to load, either 32, 16 or 8 bit
-def getInstructionFromMem(state: ProgramState, address: int) -> nodes.Node:
+def getInstructionFromMem(state: ProgramState, address: int) -> nodes.InstructionNode:
     # TODO check address is in range
     if (address & 3) != 0:
         # TODO err
@@ -104,7 +104,11 @@ def getInstructionFromMem(state: ProgramState, address: int) -> nodes.Node:
     internal_address = address >> 2
 
     word = state.memory[internal_address]
-    return word
+    if isinstance(word, nodes.InstructionNode):
+        return word
+    else:
+        # TODO error
+        pass
 
 
 # storeInMem:: ProgramState -> int -> int -> int -> ProgramState
