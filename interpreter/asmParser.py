@@ -128,7 +128,6 @@ def decodeGlobal(tokenList: List[tokens.Token]) -> Tuple[Union[List[str], nodes.
         return instructions.generateUnexpectedTokenError(label.line, label.contents, "a label"), instructions.advanceToNewline(tokenList)
 
 
-# NOTE make sure to not have any ErrorTokens in the iterator
 def parse(tokenList: List[tokens.Token], context: ProgramContext = ProgramContext([], [], [], [], []),
           section: nodes.Node.Section = nodes.Node.Section.TEXT) -> ProgramContext:
     if len(tokenList) == 0:
