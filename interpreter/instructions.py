@@ -146,27 +146,110 @@ def decodeLDR(tokenList: List[tokens.Token], section: nodes.Node.Section, bitSiz
                     value: int = src2.value
                     # check bit length - 5 bits or 8 for full word relative to SP or PC
                     src1Text = src1.contents.upper()
-                    if bitSize == 32 and (src1Text == "SP" or src1Text == "PC"):
-                        if value > 0xFF:
-                            return generateImmediateOutOfRangeError(src2.line, value, 0xFF), tokenList
+                    if src1Text == "SP" or src1Text == "PC":
+                        if bitSize == 32:
+                            if value > 0xFF:
+                                return generateImmediateOutOfRangeError(src2.line, value, 0xFF), tokenList
+                            else:
+                                value = 4 + (value*4)
+                        else:
+                            return nodes.ErrorNode(f"\033[31m"  # red color
+                                                   f"File \"$fileName$\", line {src2.line}\n"
+                                                   f"\tSyntax error: Cannot only load a full word relative to PC or LR"
+                                                   f"\033[0m\n"), tokenList
                     else:
                         if value > 0b0001_1111:
                             return generateImmediateOutOfRangeError(src2.line, value, 0b0111_1111), tokenList
-                        else:
-                            # multiple by 4
-                            if bitSize == 32:
-                                value *= 4
-                            elif bitSize == 16:
-                                value *= 2
 
                     def ldrRegImmed(state: programState.ProgramState) -> programState.ProgramState:
                         adr = programState.getReg(state, src1.contents)
-                        contents = programState.getDataFromMem(state, adr + src2.value, bitSize)
+                        contents = programState.getDataFromMem(state, adr + value, bitSize)
                         return programState.setReg(state, dest.contents, contents)
                     return nodes.InstructionNode(section, dest.line, ldrRegImmed), tokenList
                 else:
                     # Wrong token, generate an error
                     return generateUnexpectedTokenError(src2.line, src2.contents, "a register or an immediate value"), advanceToNewline(tokenList)
+            else:
+                # Wrong token, generate an error
+                return generateUnexpectedTokenError(separator.line, separator.contents, "']' or ','"), advanceToNewline(tokenList)
+        else:
+            # Wrong token, generate an error
+            return generateUnexpectedTokenError(separator.line, separator.contents, "'['"), advanceToNewline(tokenList)
+    else:
+        # Wrong token, generate an error
+        return generateUnexpectedTokenError(separator.line, separator.contents, "','"), advanceToNewline(tokenList)
+
+
+# decodeLDR:: [Token] -> Node.Section -> ijt -> (Node, [Token])
+# bitSize: the number ob bits to load, either 32, 16 or 8 bit
+# decode the LDR, LDRH and LDRB instructions
+def decodeSTR(tokenList: List[tokens.Token], section: nodes.Node.Section, bitSize: int) -> Tuple[nodes.Node, List[tokens.Token]]:
+    if len(tokenList) == 0:
+        return generateToFewTokensError(-1, "STR instruction"), []
+    src, *tokenList = tokenList
+    if len(tokenList) < 2:
+        return generateToFewTokensError(src.line, "STR instruction"), []
+    if not isinstance(src, tokens.Register):
+        # Wrong token, generate an error
+        return generateUnexpectedTokenError(src.line, src.contents, "a register or an immediate value"), advanceToNewline(tokenList)
+    separator, *tokenList = tokenList
+    if isinstance(separator, tokens.Separator) and separator.contents == ",":
+        separator, *tokenList = tokenList
+        if isinstance(separator, tokens.Separator) and separator.contents == "[":
+            if len(tokenList) < 2:
+                return generateToFewTokensError(src.line, "STR instruction"), []
+            dest1, *tokenList = tokenList
+            if not isinstance(dest1, tokens.Register):
+                # Wrong token, generate an error
+                return generateUnexpectedTokenError(dest1.line, dest1.contents, "a register"), advanceToNewline(tokenList)
+            separator, *tokenList = tokenList
+            if isinstance(separator, tokens.Separator) and separator.contents == "]":
+                def strOneReg(state: programState.ProgramState) -> programState.ProgramState:
+                    adr = programState.getReg(state, dest1.contents)
+                    contents = programState.getReg(state, src.contents)
+                    return programState.storeInMem(state, adr, contents, bitSize)
+                return nodes.InstructionNode(section, src.line, strOneReg), tokenList
+            elif isinstance(separator, tokens.Separator) and separator.contents == ",":
+                if len(tokenList) < 2:
+                    return generateToFewTokensError(src.line, "STR instruction"), []
+                dest2, separator, *tokenList = tokenList
+                if isinstance(separator, tokens.Separator) and separator.contents != "]":
+                    return generateUnexpectedTokenError(separator.line, separator.contents, "']'"), advanceToNewline(tokenList)
+                if isinstance(dest2, tokens.Register):
+                    def strDualReg(state: programState.ProgramState) -> programState.ProgramState:
+                        adr1 = programState.getReg(state, dest1.contents)
+                        adr2 = programState.getReg(state, dest2.contents)
+                        contents = programState.getReg(state, src.contents)
+                        return programState.storeInMem(state, adr1+adr2, contents, bitSize)
+                    return nodes.InstructionNode(section, src.line, strDualReg), tokenList
+                elif isinstance(dest2, tokens.ImmediateValue):
+                    dest2: tokens.ImmediateValue = dest2
+                    value: int = dest2.value
+                    # check bit length - 5 bits or 8 for full word relative to SP or PC
+                    dest1Text = dest1.contents.upper()
+                    if dest1Text == "SP" or dest1Text == "PC":
+                        if bitSize == 32:
+                            if value > 0xFF:
+                                return generateImmediateOutOfRangeError(dest2.line, value, 0xFF), tokenList
+                            else:
+                                value = 4 + (value*4)
+                        else:
+                            return nodes.ErrorNode(f"\033[31m"  # red color
+                                                   f"File \"$fileName$\", line {dest2.line}\n"
+                                                   f"\tSyntax error: Cannot only store a full word relative to PC or LR"
+                                                   f"\033[0m\n"), tokenList
+                    else:
+                        if value > 0b0001_1111:
+                            return generateImmediateOutOfRangeError(dest2.line, value, 0b0111_1111), tokenList
+
+                    def strRegImmed(state: programState.ProgramState) -> programState.ProgramState:
+                        adr = programState.getReg(state, dest1.contents)
+                        contents = programState.getReg(state, src.contents)
+                        return programState.storeInMem(state, adr + value, contents, bitSize)
+                    return nodes.InstructionNode(section, src.line, strRegImmed), tokenList
+                else:
+                    # Wrong token, generate an error
+                    return generateUnexpectedTokenError(dest2.line, dest2.contents, "a register or an immediate value"), advanceToNewline(tokenList)
             else:
                 # Wrong token, generate an error
                 return generateUnexpectedTokenError(separator.line, separator.contents, "']' or ','"), advanceToNewline(tokenList)
@@ -492,8 +575,8 @@ def decodeBranch(tokenList: List[tokens.Token], section: nodes.Node.Section,
     if isinstance(label, tokens.Label):
         def branchTo(state: programState.ProgramState) -> programState.ProgramState:
             if condition(state.status):
+                # Subtract 4 because we will add 4 to the address later in the run loop and we need to start at address and not address+4
                 address = programState.getLabelAddress(state, label.contents)
-
                 return programState.setReg(state, "PC", address-4)
             else:
                 return state
@@ -516,6 +599,7 @@ def decodeBL(tokenList: List[tokens.Token], section: nodes.Node.Section) -> Tupl
             pc = programState.getReg(state, "PC")
             state = programState.setReg(state, "LR", pc)
 
+            # Subtract 4 because we will add 4 to the address later in the run loop and we need to start at address and not address+4
             address = programState.getLabelAddress(state, label.contents)
             return programState.setReg(state, "PC", address-4)
 
@@ -525,6 +609,7 @@ def decodeBL(tokenList: List[tokens.Token], section: nodes.Node.Section) -> Tupl
         return generateUnexpectedTokenError(label.line, label.contents, "a label"), advanceToNewline(tokenList)
 
 
+# TODO STRB
 # saves one function per instruction to be used to decode that instruction into a Node
 tokenFunctions: Dict[str, Callable[[List[tokens.Token], nodes.Node.Section], Tuple[nodes.Node, List[tokens.Token]]]] = {
     "MOV": decodeMOV,
@@ -532,9 +617,9 @@ tokenFunctions: Dict[str, Callable[[List[tokens.Token], nodes.Node.Section], Tup
     "LDR": lambda a, b: decodeLDR(a, b, 32),
     "LDRH": lambda a, b: decodeLDR(a, b, 16),
     "LDRB": lambda a, b: decodeLDR(a, b, 8),
-    "STR": None,
-    "STRH": None,
-    "STRB": None,
+    "STR": lambda a, b: decodeSTR(a, b, 32),
+    "STRH": lambda a, b: decodeSTR(a, b, 16),
+    "STRB": lambda a, b: decodeSTR(a, b, 8),
     "LDRSH": None,
     "LDRSB": None,
 

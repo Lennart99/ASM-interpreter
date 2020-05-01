@@ -71,6 +71,10 @@ class AsciiAsciz(Token):
     pass
 
 
+class Skip(Token):
+    pass
+
+
 class Section(Token):
     pass
 
@@ -87,6 +91,13 @@ class Separator(Token):
     pass
 
 
+# class Comment(Token):
+#     def __init__(self, contents: str, idx: int, line: int):
+#         super().__init__(contents, idx, line)
+#
+#     def __str__(self) -> str:
+#         return "{}('{}')".\
+#             format(type(self).__name__, self.contents.replace('\n', '\\n'))
 
 
 class StringLiteral(Token):
@@ -152,10 +163,10 @@ def getIntValue(text: str, line: int) -> Union[int, ErrorToken]:
 def charToInt(text: str) -> int:
     # All checks are done already, just do the converting here
     if text[0] == '\\' and len(text) == 2:
-        text = text.replace('\\b', '\b').replace('\\f', '\f').replace('\\n', '\n').replace('\\r', '\r').\
-            replace('\\t', '\t').replace('\\"', '\"').replace('\\\\', '\\')
         if text[1] == '0':
             return 0
+        text = text.replace('\\b', '\b').replace('\\f', '\f').replace('\\n', '\n').replace('\\r', '\r').\
+            replace('\\t', '\t').replace('\\"', '\"').replace('\\\\', '\\')
     return ord(text[0])
 
 
@@ -224,6 +235,7 @@ tokenConstructors: Dict[str, Callable[[str, int, int], Token]] = {
     "IMMED_VALUE": lambda a, b, c: createImmediateValue(ImmediateValue, a, b, c),
     "LD_IMMED_VALUE": lambda a, b, c: createImmediateValue(LoadImmediateValue, a, b, c),
     "ALIGN": Align,
+    "SKIP": Skip,
     "ASCII_ASCIZ": AsciiAsciz,
     "SECTION": Section,
     "CPU": Cpu,

@@ -37,6 +37,10 @@ class InstructionNode(Node):
         super().__init__(section, line)
         self.function = func
 
+    def __str__(self) -> str:
+        return "{}({}, {}, {})".\
+            format(type(self).__name__, self.section, self.line, self.function)
+
 
 class Label:
     def __init__(self, name: str, section: Node.Section, address: int):

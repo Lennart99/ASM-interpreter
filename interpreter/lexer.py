@@ -9,7 +9,7 @@ import instructions
 INSTRUCTIONS = list(instructions.tokenFunctions.keys())
 
 # Regular expression with possible instructions
-R_INSTRUCTION = r"(?P<INSTRUCTION>" + foldL(lambda text, instr: text + "|" + instr, INSTRUCTIONS[0], INSTRUCTIONS[1:]) + ")|"
+R_INSTRUCTION = r"(?P<INSTRUCTION>" + foldL(lambda text, instr: text + "[ \t]|" + instr, INSTRUCTIONS[0], INSTRUCTIONS[1:]) + ")|"
 
 # ^[^\d\W] matches a character that is a letter or a underscore at the start of the string
 # \w*\Z matches a letter, a number or a underscore at the rest of the string
@@ -22,10 +22,11 @@ TOKEN_REGEX = re.compile(R_INSTRUCTION +
                          r"(?P<LD_LABEL>=[ \t]*(" + R_LABEL + "))|"
                          r"(?P<LABEL>" + R_LABEL + ")|"
                          r"(?P<IMMED_VALUE>"
-                         r"#[ \t]*0x[0-9a-f]+|#[ \t]*0b[01]+|#[ \t]*'((\\[tnrfv])|(.))'|#[ \t]*[0-9]+)|"
+                         r"#[ \t]*0x[0-9a-f]+|#[ \t]*0b[01]+|#[ \t]*'((\\[0tnrfv])|(.))'|#[ \t]*[0-9]+)|"
                          r"(?P<LD_IMMED_VALUE>"
-                         r"=[ \t]*0x[0-9a-f]+|=[ \t]*0b[01]+|=[ \t]*'((\\[tnrfv])|(.))'|=[ \t]*[0-9]+)|"
-                         r"(?P<ALIGN>\.align[ \t]*[1248])|"
+                         r"=[ \t]*0x[0-9a-f]+|=[ \t]*0b[01]+|=[ \t]*'((\\[0tnrfv])|(.))'|=[ \t]*[0-9]+)|"
+                         r"(?P<ALIGN>\.align[ \t]+[1248])|"
+                         r"(?P<SKIP>\.skip[ \t]+\d+)|"
                          r"(?P<ASCII_ASCIZ>\.ascii|\.asciz|\.string)|"
                          r"(?P<SECTION>\.text|\.bss|\.data)|"
                          r"(?P<CPU>\.cpu[^\n]*)|"

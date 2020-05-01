@@ -11,14 +11,11 @@ from programContext import ProgramContext
 # Adds a node to the ProgramContext in the right section based on the arguments
 def addNodeToProgramContext(context: ProgramContext, node: nodes.Node, section: nodes.Node.Section) -> ProgramContext:
     if section == nodes.Node.Section.TEXT:
-        return ProgramContext(context.text + [node], context.bss.copy(), context.data.copy(),
-                              context.labels.copy(), context.globalLabels.copy())
+        return ProgramContext(context.text + [node], context.bss.copy(), context.data.copy(), context.labels.copy(), context.globalLabels.copy())
     elif section == nodes.Node.Section.BSS:
-        return ProgramContext(context.text.copy(), context.bss + [node], context.data.copy(),
-                              context.labels.copy(), context.globalLabels.copy())
+        return ProgramContext(context.text.copy(), context.bss + [node], context.data.copy(), context.labels.copy(), context.globalLabels.copy())
     elif section == nodes.Node.Section.DATA:
-        return ProgramContext(context.text.copy(), context.bss.copy(), context.data + [node],
-                              context.labels.copy(), context.globalLabels.copy())
+        return ProgramContext(context.text.copy(), context.bss.copy(), context.data + [node], context.labels.copy(), context.globalLabels.copy())
 
 
 # getStringTokens:: [Token] -> (Either [StringLiteral] ErrorNode, [Token])
@@ -128,8 +125,7 @@ def decodeGlobal(tokenList: List[tokens.Token]) -> Tuple[Union[List[str], nodes.
         return instructions.generateUnexpectedTokenError(label.line, label.contents, "a label"), instructions.advanceToNewline(tokenList)
 
 
-def parse(tokenList: List[tokens.Token], context: ProgramContext = ProgramContext([], [], [], [], []),
-          section: nodes.Node.Section = nodes.Node.Section.TEXT) -> ProgramContext:
+def parse(tokenList: List[tokens.Token], context: ProgramContext = ProgramContext([], [], [], [], []), section: nodes.Node.Section = nodes.Node.Section.TEXT) -> ProgramContext:
     if len(tokenList) == 0:
         return context
     head, *tokenList = tokenList
@@ -156,23 +152,21 @@ def parse(tokenList: List[tokens.Token], context: ProgramContext = ProgramContex
             label = nodes.Label(head.contents, section, nextAddress)
             labels = context.labels + [label]
             # Generate new context and call parse() with remaining tokens
-            return parse(tokenList,
-                         ProgramContext(context.text.copy(), context.bss.copy(), context.data.copy(), labels,
-                                        context.globalLabels.copy()), section)
+            return parse(tokenList, ProgramContext(context.text.copy(), context.bss.copy(), context.data.copy(), labels, context.globalLabels.copy()), section)
         else:
             # It is an actual instruction
-            opCode: str = head.contents.upper()
-            func: Callable[[List[tokens.Token], nodes.Node.Section], Tuple[nodes.Node, List[tokens.Token]]] = instructions.tokenFunctions[opCode]
-            if func is not None:
-                node, tokenList = func(tokenList, section)
-                return parse(tokenList, addNodeToProgramContext(context, node, section), section)
-            else:
-                # Instruction not implemented
-                err = nodes.ErrorNode(f"\033[31m"  # red color
-                                      f"File \"$fileName$\", line {head.line}\n"
-                                      f"\tSyntax error: Unsupported instruction: '{head.contents}'"
-                                      f"\033[0m\n")
-                return parse(instructions.advanceToNewline(tokenList), addNodeToProgramContext(context, err, section), section)
+            opCode: str = head.contents.upper().strip()
+            if opCode in instructions.tokenFunctions.keys():
+                func: Callable[[List[tokens.Token], nodes.Node.Section], Tuple[nodes.Node, List[tokens.Token]]] = instructions.tokenFunctions[opCode]
+                if func is not None:
+                    node, tokenList = func(tokenList, section)
+                    return parse(tokenList, addNodeToProgramContext(context, node, section), section)
+            # Instruction not implemented
+            err = nodes.ErrorNode(f"\033[31m"  # red color
+                                  f"File \"$fileName$\", line {head.line}\n"
+                                  f"\tSyntax error: Unsupported instruction: '{head.contents}'"
+                                  f"\033[0m\n")
+            return parse(instructions.advanceToNewline(tokenList), addNodeToProgramContext(context, err, section), section)
     elif isinstance(head, tokens.Label) or isinstance(head, tokens.Register):
         if len(tokenList) == 0:
             err = instructions.generateUnexpectedTokenError(head.line, "End of File", "':'")
@@ -194,10 +188,7 @@ def parse(tokenList: List[tokens.Token], context: ProgramContext = ProgramContex
             label = nodes.Label(head.contents, section, nextAddress)
             labels = context.labels + [label]
             # Generate new context and call parse() with remaining tokens
-            return parse(tokenList,
-                         ProgramContext(context.text.copy(), context.bss.copy(), context.data.copy(),
-                                        labels, context.globalLabels.copy()),
-                         section)
+            return parse(tokenList, ProgramContext(context.text.copy(), context.bss.copy(), context.data.copy(), labels, context.globalLabels.copy()), section)
         else:
             err = instructions.generateUnexpectedTokenError(head.line, sep.contents, "':'")
             return parse(tokenList, addNodeToProgramContext(context, err, section), section)
@@ -214,29 +205,43 @@ def parse(tokenList: List[tokens.Token], context: ProgramContext = ProgramContex
     elif isinstance(head, tokens.AsciiAsciz):
         dataNodes, tokenList = decodeStringLiteral(head, tokenList, section)
         if section == nodes.Node.Section.TEXT:
-            context = ProgramContext(context.text + dataNodes, context.bss.copy(), context.data.copy(),
-                                     context.labels.copy(), context.globalLabels.copy())
+            context = ProgramContext(context.text + dataNodes, context.bss.copy(), context.data.copy(), context.labels.copy(), context.globalLabels.copy())
         elif section == nodes.Node.Section.BSS:
-            context = ProgramContext(context.text.copy(), context.bss + dataNodes, context.data.copy(),
-                                     context.labels.copy(), context.globalLabels.copy())
+            context = ProgramContext(context.text.copy(), context.bss + dataNodes, context.data.copy(), context.labels.copy(), context.globalLabels.copy())
         elif section == nodes.Node.Section.DATA:
-            context = ProgramContext(context.text.copy(), context.bss.copy(), context.data + dataNodes,
-                                     context.labels.copy(), context.globalLabels.copy())
+            context = ProgramContext(context.text.copy(), context.bss.copy(), context.data + dataNodes, context.labels.copy(), context.globalLabels.copy())
         return parse(tokenList, context, section)
     elif isinstance(head, tokens.Global):
         globalLabels, tokenList = decodeGlobal(tokenList)
         if isinstance(globalLabels, nodes.ErrorNode):
-            return parse(instructions.advanceToNewline(tokenList),
-                         addNodeToProgramContext(context, globalLabels, section), section)
-        return parse(tokenList,
-                     ProgramContext(context.text.copy(), context.bss.copy(), context.data.copy(),
-                                    context.labels.copy(), context.globalLabels + globalLabels),
-                     section)
+            return parse(instructions.advanceToNewline(tokenList), addNodeToProgramContext(context, globalLabels, section), section)
+        return parse(tokenList, ProgramContext(context.text.copy(), context.bss.copy(), context.data.copy(), context.labels.copy(), context.globalLabels + globalLabels), section)
     elif isinstance(head, tokens.ErrorToken) or isinstance(head, tokens.NewLine):
         # skip
         return parse(tokenList, context, section)
-    elif isinstance(head, tokens.Cpu) or isinstance(head, tokens.Align):
+    elif isinstance(head, tokens.Align) or isinstance(head, tokens.Cpu):
         # skip
+        return parse(instructions.advanceToNewline(tokenList), context, section)
+    elif isinstance(head, tokens.Skip):
+        chars = list(map(lambda c: c, head.contents))
+
+        number = foldR1(lambda a, b: (a + b) if a in "0123456789" else b, chars)
+        n_skip = int(number) >> 2
+        if n_skip > 0:
+            def generateSkipNodes(n: int):
+                if n == 1:
+                    return [nodes.DataNode(0, section)]
+                else:
+                    return [nodes.DataNode(0, section)] + generateSkipNodes(n-1)
+
+            dataNodes = generateSkipNodes(n_skip)
+            if section == nodes.Node.Section.TEXT:
+                context = ProgramContext(context.text + dataNodes, context.bss.copy(), context.data.copy(), context.labels.copy(), context.globalLabels.copy())
+            elif section == nodes.Node.Section.BSS:
+                context = ProgramContext(context.text.copy(), context.bss + dataNodes, context.data.copy(), context.labels.copy(), context.globalLabels.copy())
+            elif section == nodes.Node.Section.DATA:
+                context = ProgramContext(context.text.copy(), context.bss.copy(), context.data + dataNodes, context.labels.copy(), context.globalLabels.copy())
+
         return parse(instructions.advanceToNewline(tokenList), context, section)
     else:
         # error

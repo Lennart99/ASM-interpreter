@@ -1,8 +1,19 @@
 from copy import deepcopy
+from functools import wraps
 from typing import List, Dict
 
 import programContext
 import nodes
+
+
+# copy_args ((A, B, ...) -> C) -> ((A, B, ...) -> C)
+# A decorator to copy all arguments of a function before calling the function
+def copy_args(f):
+    @wraps(f)
+    def inner(*args, **kwargs):
+        return f(*deepcopy(args), **deepcopy(kwargs))
+        # return f(*args, **kwargs)
+    return inner
 
 
 class StatusRegister:
@@ -52,11 +63,11 @@ def regToID(name: str) -> int:
 
 
 # setReg:: ProgramState -> str -> int -> ProgramState
+@copy_args
 def setReg(state: ProgramState, name: str, value: int) -> ProgramState:
-    newState = deepcopy(state)
     regID = regToID(name)
-    newState.registers[regID] = value
-    return newState
+    state.registers[regID] = value
+    return state
 
 
 # setReg:: ProgramState -> str -> int
@@ -113,40 +124,39 @@ def getInstructionFromMem(state: ProgramState, address: int) -> nodes.Instructio
 
 # storeInMem:: ProgramState -> int -> int -> int -> ProgramState
 # bitSize: the number of bits to store, either 32, 16 or 8 bit
+@copy_args
 def storeInMem(state: ProgramState, address: int, value: int, bitsize: int) -> ProgramState:
     # TODO check address is in range
-    newState = deepcopy(state)
-
     offset = address & 3
     if bitsize == 32 and offset != 0:
         # TODO err
-        pass
+        return state
     elif bitsize == 16 and (address & 1) != 0:
         # TODO err
-        pass
+        return state
 
     internal_address = address >> 2
 
     if bitsize == 32:
         # TODO check the node is a DataNode and warn the user otherwise
-        newState.memory[internal_address] = nodes.DataNode(value)
-        return newState
+        state.memory[internal_address] = nodes.DataNode(value)
+        return state
     elif bitsize == 16:
         # TODO check the node is a DataNode
         word = state.memory[internal_address].value
-        newState.memory[internal_address] = nodes.DataNode(
-            ((value << ((1 - offset) * 16)) & 0xFFFF) |
-            (word & (0xFFFF << offset * 16))
+        state.memory[internal_address] = nodes.DataNode(
+            ((value & 0xFFFF) << ((2 - offset) * 8)) |
+            (word & (0xFFFF << offset * 8))
         )
-        return newState
+        return state
     elif bitsize == 8:
         # TODO check the node is a DataNode
         word = state.memory[internal_address].value
-        newState.memory[internal_address] = nodes.DataNode((
-            ((value << ((3 - offset) * 8)) & 0xFF) |
+        state.memory[internal_address] = nodes.DataNode((
+            ((value & 0xFF) << ((3 - offset) * 8)) |
             (word & (0xFFFFFF00FFFFFF >> offset * 8))
         ) & 0xFFFFFFFF)
-        return newState
+        return state
     else:
         # TODO error - invalid bitsize
         return state
@@ -160,18 +170,20 @@ def getLabelAddress(state: ProgramState, label: str) -> int:
 
 # setALUState:: ProgramState -> StatusRegister -> ProgramState
 # set the status register
+@copy_args
 def setALUState(state: ProgramState, value: StatusRegister) -> ProgramState:
-    newState = deepcopy(state)
-    newState.status = value
-    return newState
+    state.status = value
+    return state
 
 
 # printAndReturn:: ProgramState -> ProgramState
 # Implementation of the 'print_char' subroutine
 # Note: prints a char to the default output
 def subroutine_print_char(state: ProgramState) -> ProgramState:
+    # print char
     r0 = getReg(state, "R0")
     print(chr(r0), end='')
+    # mov PC, LR
     lr = getReg(state, "LR")
     return setReg(state, "PC", lr)
 
