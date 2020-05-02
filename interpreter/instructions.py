@@ -160,6 +160,12 @@ def decodeLDR(tokenList: List[tokens.Token], section: nodes.Node.Section, bitSiz
                     else:
                         if value > 0b0001_1111:
                             return generateImmediateOutOfRangeError(src2.line, value, 0b0111_1111), tokenList
+                        else:
+                            # multiple by 4
+                            if bitSize == 32:
+                                value *= 4
+                            elif bitSize == 16:
+                                value *= 2
 
                     def ldrRegImmed(state: programState.ProgramState) -> programState.ProgramState:
                         adr = programState.getReg(state, src1.contents)
@@ -241,6 +247,12 @@ def decodeSTR(tokenList: List[tokens.Token], section: nodes.Node.Section, bitSiz
                     else:
                         if value > 0b0001_1111:
                             return generateImmediateOutOfRangeError(dest2.line, value, 0b0111_1111), tokenList
+                        else:
+                            # multiple by 4
+                            if bitSize == 32:
+                                value *= 4
+                            elif bitSize == 16:
+                                value *= 2
 
                     def strRegImmed(state: programState.ProgramState) -> programState.ProgramState:
                         adr = programState.getReg(state, dest1.contents)
