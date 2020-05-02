@@ -447,8 +447,8 @@ def decodeSUB(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
             v = False
 
         c = bool((out >> 32) & 1)
-        n = out < 0
-        z = out == 0
+        n = bool((out >> 31) & 1)
+        z = out32 == 0
 
         state = programState.setReg(state, arg1, out32)
         state = programState.setALUState(state, programState.StatusRegister(n, z, c, v))
@@ -511,8 +511,8 @@ def decodeADD(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
             v = False
 
         c = bool((out >> 32) & 1)
-        n = out < 0
-        z = out == 0
+        n = bool((out >> 31) & 1)
+        z = out32 == 0
 
         state = programState.setReg(state, arg1, out32)
         state = programState.setALUState(state, programState.StatusRegister(n, z, c, v))
@@ -554,8 +554,8 @@ def decodeCMP(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
             v = False
 
         c = bool((out >> 32) & 1)
-        n = out < 0
-        z = out == 0
+        n = bool((out >> 31) & 1)
+        z = out32 == 0
 
         # state = programState.setReg(state, arg1, out32)
         state = programState.setALUState(state, programState.StatusRegister(n, z, c, v))
