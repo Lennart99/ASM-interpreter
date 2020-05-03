@@ -1,9 +1,33 @@
 from copy import deepcopy
 from functools import wraps
-from typing import List, Dict
+from typing import List, Dict, Tuple, Union
+from enum import Enum
 
 import programContext
 import nodes
+
+
+class RunError:
+    class ErrorType(Enum):
+        NoError = 0
+        Warning = 1
+        Error = 2
+
+    def __init__(self, message: str, errType: ErrorType):
+        self.message = ("Runtime Error: " if errType == RunError.ErrorType.Error else "Runtime Warning: ") + message
+        self.errorType = errType
+
+    def __repr__(self) -> str:
+        return self.message
+
+    def __str__(self) -> str:
+        return self.message
+
+
+# This error is used to stop the interpreter when the program has returned
+class StopProgram(RunError):
+    def __init__(self):
+        super().__init__("Program has stopped", RunError.ErrorType.NoError)
 
 
 # copy_args ((A, B, ...) -> C) -> ((A, B, ...) -> C)
@@ -32,11 +56,12 @@ class StatusRegister:
 
 
 class ProgramState:
-    def __init__(self, regs: List[int], status: StatusRegister, memory: List[nodes.Node], labels: Dict[str, nodes.Label]):
+    def __init__(self, regs: List[int], status: StatusRegister, memory: List[nodes.Node], labels: Dict[str, nodes.Label], file: str):
         self.registers: List[int] = regs
         self.status: StatusRegister = status
         self.memory: List[nodes.Node] = memory
         self.labels: Dict[str, nodes.Label] = labels
+        self.fileName = file
 
     def __str__(self) -> str:
         return "{}({}, {})". \
@@ -66,10 +91,7 @@ def regToID(name: str) -> int:
 # setReg:: ProgramState -> str -> int -> ProgramState
 @copy_args
 def setReg(state: ProgramState, name: str, value: int) -> ProgramState:
-    regID = regToID(name)
-    if regID == -1:
-        # TODO err
-        return state
+    regID: int = regToID(name)
     state.registers[regID] = value
     return state
 
@@ -77,34 +99,27 @@ def setReg(state: ProgramState, name: str, value: int) -> ProgramState:
 # setReg:: ProgramState -> str -> int
 def getReg(state: ProgramState, name: str) -> int:
     regID: int = regToID(name)
-    if regID == -1:
-        # TODO err
-        return -1
     return state.registers[regID]
 
 
 # loadRegister:: ProgramState -> int -> int -> String -> ProgramState
 # bitSize: the number of bits to load, either 32, 16 or 8 bit
 # don't need to copy the ProgramState as setReg does that already
-def loadRegister(state: ProgramState, address: int, bitsize: int, register: str) -> ProgramState:
+def loadRegister(state: ProgramState, address: int, bitsize: int, register: str) -> Union[ProgramState, RunError]:
     offset = address & 3
     if bitsize == 32 and offset != 0:
-        # TODO err
-        return state
-    elif bitsize == 16 and (address&1) != 0:
-        # TODO err
-        return state
+        return RunError("To load a word from memory, the address needs to be a multiple of 4", RunError.ErrorType.Error)
+    elif bitsize == 16 and (address & 1) != 0:
+        return RunError("To load a half-word from memory, the address needs to be a multiple of 2", RunError.ErrorType.Error)
 
     internal_address = address >> 2
     # check address is in range
     if internal_address < 0 or internal_address >= len(state.memory):
-        # TODO err
-        return state
+        return RunError(f"memory address out of range: {address}, must be in range [0...{len(state.memory)*4}]", RunError.ErrorType.Error)
 
     word = state.memory[internal_address]
     if not isinstance(word, nodes.DataNode):
-        # TODO error
-        return state
+        return RunError("It is not possible to load the contents of an instruction", RunError.ErrorType.Error)
     if bitsize == 32:
         return setReg(state, register, word.value)
     elif bitsize == 16:
@@ -118,51 +133,46 @@ def loadRegister(state: ProgramState, address: int, bitsize: int, register: str)
 
 
 # getInstructionFromMem:: ProgramState -> int -> InstructionNode
-def getInstructionFromMem(state: ProgramState, address: int) -> nodes.InstructionNode:
+def getInstructionFromMem(state: ProgramState, address: int) -> Union[nodes.InstructionNode, RunError]:
     if (address & 3) != 0:
-        # TODO err
-        pass
+        return RunError("To load an instruction from memory, the address needs to be a multiple of 4", RunError.ErrorType.Error)
 
     internal_address = address >> 2
     # check address is in range
     if internal_address < 0 or internal_address >= len(state.memory):
-        # TODO err
-        pass
+        return RunError(f"memory address out of range: {address}, must be in range [0...{len(state.memory) * 4}]", RunError.ErrorType.Error)
 
     word = state.memory[internal_address]
     if isinstance(word, nodes.InstructionNode):
         return word
     else:
-        # TODO error
-        pass
+        return RunError("Loaded data is no instruction", RunError.ErrorType.Error)
 
 
 # storeRegister:: ProgramState -> int -> String -> int -> ProgramState
 # bitSize: the number of bits to store, either 32, 16 or 8 bit
 @copy_args
-def storeRegister(state: ProgramState, address: int, register: str, bitsize: int) -> ProgramState:
+def storeRegister(state: ProgramState, address: int, register: str, bitsize: int) -> Union[ProgramState, RunError]:
     offset = address & 3
     if bitsize == 32 and offset != 0:
-        # TODO err
-        return state
+        return RunError("To store a word in memory, the address needs to be a multiple of 4", RunError.ErrorType.Error)
     elif bitsize == 16 and (address & 1) != 0:
-        # TODO err
-        return state
+        return RunError("To store a half-word in memory, the address needs to be a multiple of 2", RunError.ErrorType.Error)
 
     value = getReg(state, register)
     internal_address = address >> 2
+    # check address is in range
+    if internal_address < 0 or internal_address >= len(state.memory):
+        return RunError(f"memory address out of range: {address}, must be in range [0...{len(state.memory) * 4}]", RunError.ErrorType.Error)
 
     word = state.memory[internal_address]
     if word.section == nodes.Node.Section.TEXT:
-        # TODO ERR - can't change .text
-        return state
+        return RunError("It is not possible to change the contents of a text section", RunError.ErrorType.Error)
     if not isinstance(word, nodes.DataNode):
         if bitsize == 32:
-            # TODO WARN
-            pass
+            return RunError("You are replacing the contents of an instruction", RunError.ErrorType.Warning)
         else:
-            # TODO ERR - unsupported
-            return state
+            return RunError("It is not possible to change part of the contents of an instruction", RunError.ErrorType.Error)
     if bitsize == 32:
         state.memory[internal_address] = nodes.DataNode(value, register)
         return state
@@ -179,22 +189,20 @@ def storeRegister(state: ProgramState, address: int, register: str, bitsize: int
         return state
     else:
         # Invalid bitsize, should never happen
-        print("BITSIZE", bitsize)
-        return state
+        return RunError("Invalid bitsize", RunError.ErrorType.Error)
 
 
 # getLabelAddress:: ProgramState -> str -> int
-def getLabelAddress(state: ProgramState, label: str) -> int:
+def getLabelAddress(state: ProgramState, label: str) -> Union[int, RunError]:
     if label not in state.labels.keys():
-        # TODO error
-        return -1
+        return RunError(f"Unknown label: {label}", RunError.ErrorType.Error)
     return state.labels[label].address
 
 
 # setALUState:: ProgramState -> StatusRegister -> ProgramState
 # set the status register
 @copy_args
-def setALUState(state: ProgramState, value: StatusRegister) -> ProgramState:
+def setALUState(state: ProgramState, value: StatusRegister) -> Union[ProgramState, RunError]:
     state.status = value
     return state
 
@@ -202,13 +210,21 @@ def setALUState(state: ProgramState, value: StatusRegister) -> ProgramState:
 # printAndReturn:: ProgramState -> ProgramState
 # Implementation of the 'print_char' subroutine
 # Note: prints a char to the default output
-def subroutine_print_char(state: ProgramState) -> ProgramState:
+def subroutine_print_char(state: ProgramState) -> Tuple[ProgramState, Union[RunError, None]]:
     # print char
     r0 = getReg(state, "R0")
     print(chr(r0), end='')
     # mov PC, LR
     lr = getReg(state, "LR")
-    return setReg(state, "PC", lr)
+    return setReg(state, "PC", lr), None
+
+
+def branchToLabel(state: ProgramState, label: str) -> Tuple[ProgramState, Union[RunError, None]]:
+    # Save return address in LR
+    state = setReg(state, "LR", getReg(state, "PC"))
+    # Subtract 4 because we will add 4 to the address later in the run loop and we need to start at address and not address+4
+    address = getLabelAddress(state, label)
+    return setReg(state, "PC", address - 4), None
 
 
 # convertLabelsToDict:: [label] -> int -> int -> int -> {str, label}
@@ -232,11 +248,11 @@ def convertLabelsToDict(labelList: List[nodes.Label], stackSize: int, textSize: 
 
 # generateProgramState:: ProgramContext -> int -> str -> ProgramState
 # Generate a ProgramState based on a ProgramContext
-def generateProgramState(context: programContext.ProgramContext, stackSize: int, startLabel: str) -> ProgramState:
+def generateProgramState(context: programContext.ProgramContext, stackSize: int, startLabel: str, fileName: str) -> ProgramState:
     text = context.text + [nodes.InstructionNode(nodes.Node.Section.TEXT, -1, subroutine_print_char),
-                           nodes.InstructionNode(nodes.Node.Section.TEXT, -1, lambda s: setReg(setReg(s, "LR", getReg(s, "PC")), "PC", getLabelAddress(s, startLabel) - 4)),
-                           # TODO force-stop with exception
-                           nodes.InstructionNode(nodes.Node.Section.TEXT, -1, lambda s: setReg(s, "PC", 0))
+                           nodes.InstructionNode(nodes.Node.Section.TEXT, -1, lambda s: branchToLabel(s, startLabel)),
+                           # force-stop with exception
+                           nodes.InstructionNode(nodes.Node.Section.TEXT, -1, lambda s: (s, StopProgram()))
                            ]
 
     mem: List[nodes.Node] = [nodes.DataNode(0, "SETUP") for _ in range(stackSize >> 2)] + text + context.bss + context.data
@@ -248,4 +264,4 @@ def generateProgramState(context: programContext.ProgramContext, stackSize: int,
     labels = convertLabelsToDict(labelList, stackSize, len(text), len(context.bss))
 
     regs[regToID("PC")] = labels["print_char"].address+4
-    return ProgramState(regs, status, mem, labels)
+    return ProgramState(regs, status, mem, labels, fileName)
