@@ -21,9 +21,11 @@ class Node:
 
 
 class DataNode(Node):
-    def __init__(self, val: int, section: Node.Section = Node.Section.BSS, line: int = -1):
+    def __init__(self, val: int, source: str, section: Node.Section = Node.Section.BSS, line: int = -1):
         super().__init__(section, line)
         self.value = val
+        # tels from which register was this value was stored, useful while generating a stacktrace
+        self.source = source
 
     def __str__(self) -> str:
         return "{}({})".\

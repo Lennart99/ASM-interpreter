@@ -11,8 +11,8 @@ import nodes
 def copy_args(f):
     @wraps(f)
     def inner(*args, **kwargs):
-        return f(*deepcopy(args), **deepcopy(kwargs))
-        # return f(*args, **kwargs)
+        # return f(*deepcopy(args), **deepcopy(kwargs))
+        return f(*args, **kwargs)
     return inner
 
 
@@ -59,6 +59,7 @@ def regToID(name: str) -> int:
         return 15
     else:
         # The name of the register can't be unknown because it then would not be recognized as such
+        print("Invalid register", name)
         return -1
 
 
@@ -66,6 +67,9 @@ def regToID(name: str) -> int:
 @copy_args
 def setReg(state: ProgramState, name: str, value: int) -> ProgramState:
     regID = regToID(name)
+    if regID == -1:
+        # TODO err
+        return state
     state.registers[regID] = value
     return state
 
@@ -73,46 +77,57 @@ def setReg(state: ProgramState, name: str, value: int) -> ProgramState:
 # setReg:: ProgramState -> str -> int
 def getReg(state: ProgramState, name: str) -> int:
     regID: int = regToID(name)
+    if regID == -1:
+        # TODO err
+        return -1
     return state.registers[regID]
 
 
-# getFromMem:: ProgramState -> int -> int -> int
+# loadRegister:: ProgramState -> int -> int -> String -> ProgramState
 # bitSize: the number of bits to load, either 32, 16 or 8 bit
-def getDataFromMem(state: ProgramState, address: int, bitsize: int) -> int:
-    # TODO check address is in range
+# don't need to copy the ProgramState as setReg does that already
+def loadRegister(state: ProgramState, address: int, bitsize: int, register: str) -> ProgramState:
     offset = address & 3
     if bitsize == 32 and offset != 0:
         # TODO err
-        pass
+        return state
     elif bitsize == 16 and (address&1) != 0:
         # TODO err
-        pass
+        return state
 
     internal_address = address >> 2
+    # check address is in range
+    if internal_address < 0 or internal_address >= len(state.memory):
+        # TODO err
+        return state
 
     word = state.memory[internal_address]
+    if not isinstance(word, nodes.DataNode):
+        # TODO error
+        return state
     if bitsize == 32:
-        return word.value
+        return setReg(state, register, word.value)
     elif bitsize == 16:
-        # TODO check the node is a DataNode
-        return (word.value >> (1-offset)*16) & 0xFFFF
+        return setReg(state, register, (word.value >> (1-offset)*16) & 0xFFFF)
     elif bitsize == 8:
-        # TODO check the node is a DataNode
-        return (word.value >> (3-offset)*8) & 0xFF
+        return setReg(state, register, (word.value >> (3-offset)*8) & 0xFF)
     else:
-        # TODO error - invalid bitsize
-        return -1
+        # Invalid bitsize, should never happen
+        print("BITSIZE", bitsize)
+        return state
 
 
-# getFromMem:: ProgramState -> int -> int -> int
-# bitSize: the number of bits to load, either 32, 16 or 8 bit
+# getInstructionFromMem:: ProgramState -> int -> InstructionNode
 def getInstructionFromMem(state: ProgramState, address: int) -> nodes.InstructionNode:
-    # TODO check address is in range
     if (address & 3) != 0:
         # TODO err
         pass
 
     internal_address = address >> 2
+    # check address is in range
+    if internal_address < 0 or internal_address >= len(state.memory):
+        # TODO err
+        pass
 
     word = state.memory[internal_address]
     if isinstance(word, nodes.InstructionNode):
@@ -122,11 +137,10 @@ def getInstructionFromMem(state: ProgramState, address: int) -> nodes.Instructio
         pass
 
 
-# storeInMem:: ProgramState -> int -> int -> int -> ProgramState
+# storeRegister:: ProgramState -> int -> String -> int -> ProgramState
 # bitSize: the number of bits to store, either 32, 16 or 8 bit
 @copy_args
-def storeInMem(state: ProgramState, address: int, value: int, bitsize: int) -> ProgramState:
-    # TODO check address is in range
+def storeRegister(state: ProgramState, address: int, register: str, bitsize: int) -> ProgramState:
     offset = address & 3
     if bitsize == 32 and offset != 0:
         # TODO err
@@ -135,36 +149,45 @@ def storeInMem(state: ProgramState, address: int, value: int, bitsize: int) -> P
         # TODO err
         return state
 
+    value = getReg(state, register)
     internal_address = address >> 2
 
+    word = state.memory[internal_address]
+    if word.section == nodes.Node.Section.TEXT:
+        # TODO ERR - can't change .text
+        return state
+    if not isinstance(word, nodes.DataNode):
+        if bitsize == 32:
+            # TODO WARN
+            pass
+        else:
+            # TODO ERR - unsupported
+            return state
     if bitsize == 32:
-        # TODO check the node is a DataNode and warn the user otherwise
-        state.memory[internal_address] = nodes.DataNode(value)
+        state.memory[internal_address] = nodes.DataNode(value, register)
         return state
     elif bitsize == 16:
-        # TODO check the node is a DataNode
-        word = state.memory[internal_address].value
         state.memory[internal_address] = nodes.DataNode(
             ((value & 0xFFFF) << ((2 - offset) * 8)) |
-            (word & (0xFFFF << offset * 8))
-        )
+            (word.value & (0xFFFF << offset * 8)), register)
         return state
     elif bitsize == 8:
-        # TODO check the node is a DataNode
-        word = state.memory[internal_address].value
         state.memory[internal_address] = nodes.DataNode((
             ((value & 0xFF) << ((3 - offset) * 8)) |
-            (word & (0xFFFFFF00FFFFFF >> offset * 8))
-        ) & 0xFFFFFFFF)
+            (word.value & (0xFFFFFF00FFFFFF >> offset * 8))
+        ) & 0xFFFFFFFF, register)
         return state
     else:
-        # TODO error - invalid bitsize
+        # Invalid bitsize, should never happen
+        print("BITSIZE", bitsize)
         return state
 
 
 # getLabelAddress:: ProgramState -> str -> int
 def getLabelAddress(state: ProgramState, label: str) -> int:
-    # TODO check label exists
+    if label not in state.labels.keys():
+        # TODO error
+        return -1
     return state.labels[label].address
 
 
@@ -210,15 +233,19 @@ def convertLabelsToDict(labelList: List[nodes.Label], stackSize: int, textSize: 
 # generateProgramState:: ProgramContext -> int -> str -> ProgramState
 # Generate a ProgramState based on a ProgramContext
 def generateProgramState(context: programContext.ProgramContext, stackSize: int, startLabel: str) -> ProgramState:
-    text = context.text + [nodes.InstructionNode(nodes.Node.Section.TEXT, -1, subroutine_print_char)]
+    text = context.text + [nodes.InstructionNode(nodes.Node.Section.TEXT, -1, subroutine_print_char),
+                           nodes.InstructionNode(nodes.Node.Section.TEXT, -1, lambda s: setReg(setReg(s, "LR", getReg(s, "PC")), "PC", getLabelAddress(s, startLabel) - 4)),
+                           # TODO force-stop with exception
+                           nodes.InstructionNode(nodes.Node.Section.TEXT, -1, lambda s: setReg(s, "PC", 0))
+                           ]
 
-    mem: List[nodes.Node] = [nodes.DataNode(0) for _ in range(stackSize >> 2)] + text + context.bss + context.data
+    mem: List[nodes.Node] = [nodes.DataNode(0, "SETUP") for _ in range(stackSize >> 2)] + text + context.bss + context.data
     regs = [0 for _ in range(16)]
     regs[regToID("SP")] = stackSize
     status = StatusRegister(False, False, False, False)
-    labelList = context.labels + [nodes.Label("print_char", nodes.Node.Section.TEXT, len(context.text))]
+    labelList = context.labels + [nodes.Label("print_char", nodes.Node.Section.TEXT, len(context.text)), nodes.Label("__STACKSIZE", nodes.Node.Section.TEXT, 0)]
 
     labels = convertLabelsToDict(labelList, stackSize, len(text), len(context.bss))
 
-    regs[regToID("PC")] = labels[startLabel].address
+    regs[regToID("PC")] = labels["print_char"].address+4
     return ProgramState(regs, status, mem, labels)

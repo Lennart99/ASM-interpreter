@@ -46,24 +46,24 @@ def getStringTokens(tokenList: List[tokens.Token]) -> Tuple[Union[List[tokens.St
 
 # bytesToInt:: [int] -> [int]
 # Convert a list of bytes into a list of ints with four bytes per int
-def bytesToInt(bytes: List[int]) -> List[int]:
-    if len(bytes) > 3:
-        first, second, third, fourth, *bytes = bytes
-    elif len(bytes) == 3:
-        first, second, third, *bytes = bytes
+def bytesToInt(values: List[int]) -> List[int]:
+    if len(values) > 3:
+        first, second, third, fourth, *values = values
+    elif len(values) == 3:
+        first, second, third, *values = values
         fourth = 0
-    elif len(bytes) == 2:
-        first, second, *bytes = bytes
-        third, fourth = [0,0]
-    elif len(bytes) == 1:
-        first, *bytes = bytes
-        second, third, fourth = [0,0,0]
+    elif len(values) == 2:
+        first, second, *values = values
+        third, fourth = [0, 0]
+    elif len(values) == 1:
+        first, *values = values
+        second, third, fourth = [0, 0, 0]
     else:  # len(bytes) == 0
         return []
 
-    res = ((first&0xFF) << 24) | ((second&0xFF) << 16) | ((third&0xFF) << 8) | (fourth&0xFF)
-    if len(bytes) > 0:
-        return [res] + bytesToInt(bytes)
+    res = ((first & 0xFF) << 24) | ((second & 0xFF) << 16) | ((third & 0xFF) << 8) | (fourth & 0xFF)
+    if len(values) > 0:
+        return [res] + bytesToInt(values)
     else:
         return [res]
 
@@ -95,7 +95,7 @@ def decodeStringLiteral(directive: tokens.Token, tokenList: List[tokens.Token], 
 
     lst = foldR1(lambda a, b: a + b, lists)
     lst = bytesToInt(lst)
-    dataNodes = list(map(lambda x: nodes.DataNode(x, section, directive.line), lst))
+    dataNodes = list(map(lambda x: nodes.DataNode(x, "CODE", section, directive.line), lst))
 
     return dataNodes, tokenList
 
@@ -154,6 +154,13 @@ def parse(tokenList: List[tokens.Token], context: ProgramContext = ProgramContex
             # Generate new context and call parse() with remaining tokens
             return parse(tokenList, ProgramContext(context.text.copy(), context.bss.copy(), context.data.copy(), labels, context.globalLabels.copy()), section)
         else:
+            # check that section is not BSS
+            if section == nodes.Node.Section.BSS:
+                err = nodes.ErrorNode(f"\033[31m"  # red color
+                                      f"File \"$fileName$\", line {head.line}\n"
+                                      f"\tSyntax error: Instructions should not be placed in BSS"
+                                      f"\033[0m\n")
+                return parse(instructions.advanceToNewline(tokenList), addNodeToProgramContext(context, err, section), section)
             # It is an actual instruction
             opCode: str = head.contents.upper().strip()
             if opCode in instructions.tokenFunctions.keys():
@@ -230,9 +237,9 @@ def parse(tokenList: List[tokens.Token], context: ProgramContext = ProgramContex
         if n_skip > 0:
             def generateSkipNodes(n: int):
                 if n == 1:
-                    return [nodes.DataNode(0, section)]
+                    return [nodes.DataNode(0, "CODE", section, head.line)]
                 else:
-                    return [nodes.DataNode(0, section)] + generateSkipNodes(n-1)
+                    return [nodes.DataNode(0, "CODE", section, head.line)] + generateSkipNodes(n-1)
 
             dataNodes = generateSkipNodes(n_skip)
             if section == nodes.Node.Section.TEXT:
