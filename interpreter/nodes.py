@@ -44,6 +44,18 @@ class InstructionNode(Node):
             format(type(self).__name__, self.section, self.line, self.function)
 
 
+class SystemCall(InstructionNode):
+    # InstructionNode:: Node.Section -> int -> (ProgramState -> (ProgramState, RunError)) -> InstructionNode
+    # can't add type parameters to func because of a circular import
+    def __init__(self, func: Callable[[Any], Tuple[Any, Any]], name: str):
+        super().__init__(Node.Section.TEXT, -1, func)
+        self.name = name
+
+    def __str__(self) -> str:
+        return "{}({}, {}, {})".\
+            format(type(self).__name__, self.section, self.line, self.function)
+
+
 class ErrorNode(Node):
     def __init__(self, message: str):
         super().__init__(Node.Section.TEXT, -1)

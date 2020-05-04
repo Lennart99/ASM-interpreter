@@ -62,6 +62,7 @@ class ProgramState:
         self.memory: List[nodes.Node] = memory
         self.labels: Dict[str, nodes.Label] = labels
         self.fileName = file
+        self.hasReturned = True
 
     def __str__(self) -> str:
         return "{}({}, {})". \
@@ -207,7 +208,7 @@ def setALUState(state: ProgramState, value: StatusRegister) -> Union[ProgramStat
     return state
 
 
-# printAndReturn:: ProgramState -> ProgramState
+# printAndReturn:: ProgramState -> (ProgramState, Either RunError or None)
 # Implementation of the 'print_char' subroutine
 # Note: prints a char to the default output
 def subroutine_print_char(state: ProgramState) -> Tuple[ProgramState, Union[RunError, None]]:
@@ -219,12 +220,19 @@ def subroutine_print_char(state: ProgramState) -> Tuple[ProgramState, Union[RunE
     return setReg(state, "PC", lr), None
 
 
+# branchToLabel:: ProgramState -> (ProgramState, Either RunError or None)
 def branchToLabel(state: ProgramState, label: str) -> Tuple[ProgramState, Union[RunError, None]]:
     # Save return address in LR
     state = setReg(state, "LR", getReg(state, "PC"))
-    # Subtract 4 because we will add 4 to the address later in the run loop and we need to start at address and not address+4
-    address = getLabelAddress(state, label)
-    return setReg(state, "PC", address - 4), None
+
+    address: Union[int, RunError] = getLabelAddress(state, label)
+    if isinstance(address, RunError):
+        return state, RunError(f"Unknown startup label: {label}", RunError.ErrorType.Error)
+    else:
+        # Subtract 4 because we will add 4 to the address later in the run loop and we need to start at address and not address+4
+        state = setReg(state, "PC", address - 4)
+        state.hasReturned = False
+        return state, None
 
 
 # convertLabelsToDict:: [label] -> int -> int -> int -> {str, label}
@@ -246,13 +254,13 @@ def convertLabelsToDict(labelList: List[nodes.Label], stackSize: int, textSize: 
     return res
 
 
-# generateProgramState:: ProgramContext -> int -> str -> ProgramState
+# generateProgramState:: ProgramContext -> int -> String -> String -> ProgramState
 # Generate a ProgramState based on a ProgramContext
 def generateProgramState(context: programContext.ProgramContext, stackSize: int, startLabel: str, fileName: str) -> ProgramState:
-    text = context.text + [nodes.InstructionNode(nodes.Node.Section.TEXT, -1, subroutine_print_char),
-                           nodes.InstructionNode(nodes.Node.Section.TEXT, -1, lambda s: branchToLabel(s, startLabel)),
-                           # force-stop with exception
-                           nodes.InstructionNode(nodes.Node.Section.TEXT, -1, lambda s: (s, StopProgram()))
+    text = context.text + [nodes.SystemCall(subroutine_print_char, "print_char"),
+                           # Subroutine to start the program and stop it afterwards
+                           nodes.SystemCall(lambda s: branchToLabel(s, startLabel), "__STARTUP"),
+                           nodes.SystemCall(lambda s: (s, StopProgram()), "__STARTUP")
                            ]
 
     mem: List[nodes.Node] = [nodes.DataNode(0, "SETUP") for _ in range(stackSize >> 2)] + text + context.bss + context.data

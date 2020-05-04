@@ -619,11 +619,11 @@ def decodeBranch(tokenList: List[tokens.Token], section: nodes.Node.Section,
     if isinstance(label, tokens.Label):
         def branchTo(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
             if condition(state.status):
-                # Subtract 4 because we will add 4 to the address later in the run loop and we need to start at address and not address+4
                 address: Union[int, programState.RunError] = programState.getLabelAddress(state, label.contents)
                 if isinstance(address, programState.RunError):
                     return state, address
                 else:
+                    # Subtract 4 because we will add 4 to the address later in the run loop and we need to start at address and not address+4
                     return programState.setReg(state, "PC", address-4), None
             else:
                 return state, None
@@ -646,12 +646,14 @@ def decodeBL(tokenList: List[tokens.Token], section: nodes.Node.Section) -> Tupl
             pc = programState.getReg(state, "PC")
             state = programState.setReg(state, "LR", pc)
 
-            # Subtract 4 because we will add 4 to the address later in the run loop and we need to start at address and not address+4
             address: Union[int, programState.RunError] = programState.getLabelAddress(state, label.contents)
             if isinstance(address, programState.RunError):
                 return state, address
             else:
-                return programState.setReg(state, "PC", address - 4), None
+                # Subtract 4 because we will add 4 to the address later in the run loop and we need to start at address and not address+4
+                state = programState.setReg(state, "PC", address - 4)
+                state.hasReturned = False
+                return state, None
 
         return nodes.InstructionNode(section, label.line, branchTo), tokenList
     else:
