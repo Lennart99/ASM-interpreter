@@ -131,6 +131,7 @@ class ErrorToken(Token):
         NoError = 0
         Warning = 1
         Error = 2
+        # No __str__ implemented because Enum implements it itself
 
     def __init__(self, message: str, errorType: ErrorType):
         super().__init__("ERROR", -1, -1)

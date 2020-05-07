@@ -1,4 +1,5 @@
 from typing import List, Callable
+from functools import wraps
 
 import nodes
 import programState
@@ -6,6 +7,7 @@ import asmParser
 import lexer
 import tokens
 from high_order import foldR1, foldL
+import visualizer
 
 
 # generateStacktraceElement:: ProgramState -> int -> String -> [String] -> String
@@ -37,20 +39,36 @@ def generateStacktrace(state: programState.ProgramState, error: programState.Run
     return res + f"\033[0m"  # Normal color
 
 
+# Decorator to update the visualizer and wait until the next instruction can be executed
+def runLogger(node: nodes.InstructionNode, lines: List[str]):
+    @wraps(node.function)
+    def inner(state: programState.ProgramState):
+        visualizer.resetRegs()
+        res = node.function(state)
+        # TODO line==-1
+        visualizer.setLine(node.line, lines[node.line-1].strip())
+        visualizer.clockTicked = False
+        while not visualizer.clockTicked:
+            if visualizer.closed:
+                exit()
+        return res
+    return inner
+
+
 # runProgram:: ProgramState -> (ProgramState -> RunError -> String) -> ProgramState
-def runProgram(state: programState.ProgramState, stackTraceGenerator: Callable[[programState.ProgramState, programState.RunError], str]) -> programState.ProgramState:
+def runProgram(state: programState.ProgramState, fileName: str, lines: List[str]) -> programState.ProgramState:
     node: nodes.InstructionNode = programState.getInstructionFromMem(state, programState.getReg(state, "PC"))
     if isinstance(node, nodes.InstructionNode):
         # Execute the instruction
-        state, err = node.function(state)
+        state, err = runLogger(node, lines)(state)
         # Exception handling
         if err is not None:
             if isinstance(err, programState.RunError):
                 if err.errorType == programState.RunError.ErrorType.Error:
-                    print(stackTraceGenerator(state, err))
+                    print(generateStacktrace(state, err, fileName, lines))
                     return state
                 elif err.errorType == programState.RunError.ErrorType.Warning:
-                    print(stackTraceGenerator(state, err))
+                    print(generateStacktrace(state, err, fileName, lines))
                     pass
             if isinstance(err, programState.StopProgram):
                 return state
@@ -60,7 +78,7 @@ def runProgram(state: programState.ProgramState, stackTraceGenerator: Callable[[
             state.hasReturned = True
         # increment the program counter
         state = programState.setReg(state, "PC", pc + 4)
-    return runProgram(state, stackTraceGenerator)
+    return runProgram(state, fileName, lines)
 
 
 # parseAndRun:: String -> int -> String -> ProgramState
@@ -84,4 +102,7 @@ def parseAndRun(fileName: str, stackSize: int, startLabel: str) -> programState.
 
     state = programState.generateProgramState(context, stackSize, startLabel, fileName)
 
-    return runProgram(state, lambda s, e: generateStacktrace(s, e, fileName, lines))
+    visualizer.initRegs(state.registers)
+
+    res = runProgram(state, fileName, lines)
+    return res

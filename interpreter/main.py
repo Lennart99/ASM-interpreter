@@ -1,14 +1,18 @@
 import interpreter
+import visualizer
 
 import sys
 import threading
 sys.setrecursionlimit(0x100000)  # note: hex
 threading.stack_size(256000000)  # set stack to 256mb
 
-fileName = "looptest.asm"
+fileName = "program.asm"
 
-t = threading.Thread(target=lambda: interpreter.parseAndRun(fileName, 0x40, "_start"))
+t = threading.Thread(target=lambda: interpreter.parseAndRun(fileName, 0x400, "_start"))
 t.start()
+
+visualizer.window.mainloop()
+
 t.join()
 
 # 30.000 iterations need 7 GB

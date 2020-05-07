@@ -5,6 +5,7 @@ from enum import Enum
 
 import programContext
 import nodes
+import visualizer
 
 
 class RunError:
@@ -12,6 +13,7 @@ class RunError:
         NoError = 0
         Warning = 1
         Error = 2
+        # No __str__ implemented because Enum implements it itself
 
     def __init__(self, message: str, errType: ErrorType):
         self.message = ("Runtime Error: " if errType == RunError.ErrorType.Error else "Runtime Warning: ") + message
@@ -28,16 +30,6 @@ class RunError:
 class StopProgram(RunError):
     def __init__(self):
         super().__init__("Program has stopped", RunError.ErrorType.NoError)
-
-
-# copy_args ((A, B, ...) -> C) -> ((A, B, ...) -> C)
-# A decorator to copy all arguments of a function before calling the function
-def copy_args(f):
-    @wraps(f)
-    def inner(*args, **kwargs):
-        # return f(*deepcopy(args), **deepcopy(kwargs))
-        return f(*args, **kwargs)
-    return inner
 
 
 class StatusRegister:
@@ -89,8 +81,34 @@ def regToID(name: str) -> int:
         return -1
 
 
+# Decorators
+def writeLogger(f):
+    @wraps(f)
+    def inner(state: ProgramState, name: str, value: int):
+        regID: int = regToID(name)
+        visualizer.reg_items[regID].setValue(value)
+        return f(state, name, value)
+    return inner
+
+
+def readLogger(f):
+    @wraps(f)
+    def inner(state: ProgramState, name: str):
+        visualizer.reg_items[regToID(name)].processRead()
+        return f(state, name)
+    return inner
+
+
+def statusLogger(f):
+    @wraps(f)
+    def inner(state: ProgramState, value: StatusRegister):
+        visualizer.setStatusRegs(value.N, value.Z, value.C, value.V)
+        return f(state, value)
+    return inner
+
+
 # setReg:: ProgramState -> str -> int -> ProgramState
-@copy_args
+@writeLogger
 def setReg(state: ProgramState, name: str, value: int) -> ProgramState:
     regID: int = regToID(name)
     state.registers[regID] = value
@@ -98,9 +116,18 @@ def setReg(state: ProgramState, name: str, value: int) -> ProgramState:
 
 
 # setReg:: ProgramState -> str -> int
+@readLogger
 def getReg(state: ProgramState, name: str) -> int:
     regID: int = regToID(name)
     return state.registers[regID]
+
+
+# setALUState:: ProgramState -> StatusRegister -> ProgramState
+# set the status register
+@statusLogger
+def setALUState(state: ProgramState, value: StatusRegister) -> Union[ProgramState, RunError]:
+    state.status = value
+    return state
 
 
 # loadRegister:: ProgramState -> int -> int -> String -> ProgramState
@@ -152,7 +179,6 @@ def getInstructionFromMem(state: ProgramState, address: int) -> Union[nodes.Inst
 
 # storeRegister:: ProgramState -> int -> String -> int -> ProgramState
 # bitSize: the number of bits to store, either 32, 16 or 8 bit
-@copy_args
 def storeRegister(state: ProgramState, address: int, register: str, bitsize: int) -> Union[ProgramState, RunError]:
     offset = address & 3
     if bitsize == 32 and offset != 0:
@@ -198,14 +224,6 @@ def getLabelAddress(state: ProgramState, label: str) -> Union[int, RunError]:
     if label not in state.labels.keys():
         return RunError(f"Unknown label: {label}", RunError.ErrorType.Error)
     return state.labels[label].address
-
-
-# setALUState:: ProgramState -> StatusRegister -> ProgramState
-# set the status register
-@copy_args
-def setALUState(state: ProgramState, value: StatusRegister) -> Union[ProgramState, RunError]:
-    state.status = value
-    return state
 
 
 # printAndReturn:: ProgramState -> (ProgramState, Either RunError or None)
