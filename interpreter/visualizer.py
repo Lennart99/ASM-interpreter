@@ -1,10 +1,12 @@
 import tkinter
 from tkinter import END, WORD
 
-from typing import List, Tuple, Any
-from functools import wraps
+from typing import List, Tuple
+import threading, time
 
 from high_order import foldR1
+import programState
+import programStateProxy
 
 
 # De visualizer kan niet volledig functioneel geschreven worden.
@@ -26,7 +28,6 @@ def on_close():
     global closed
     closed = True
     window.destroy()
-    exit(-1)
 
 
 window.protocol("WM_DELETE_WINDOW", on_close)
@@ -35,6 +36,7 @@ window.protocol("WM_DELETE_WINDOW", on_close)
 # Button actions
 # Write mem
 def write():
+    p: programState.ProgramState = None
     if clockSetting.get() == "manual":
         # TODO implement
         cont = memContents.get()
@@ -68,18 +70,6 @@ def onClockModeChange():
         nextButton.configure(state="disabled")
         readButton.configure(state="disabled")
         writeButton.configure(state="disabled")
-
-
-def updateClock():
-    if closed:
-        exit()
-    global clockTicked
-    window.after(1000//clockSpeed, updateClock)
-    if clockSetting.get() == "auto":
-        clockTicked = True
-
-
-window.after(1000//clockSpeed, updateClock)
 
 
 def checkClockSpeed(text: str) -> bool:
@@ -239,8 +229,7 @@ def initRegs(registers: List[int]):
     global reg_items
 
     def init(e: Tuple[int, RegisterEntry]):
-        idx: int = e[0]
-        reg: RegisterEntry = e[1]
+        idx, reg = e
         reg.setValue(registers[idx])
         reg.reset()
         return reg
@@ -253,6 +242,14 @@ def initRegs(registers: List[int]):
 
 def setLine(line: int, text: str):
     currentLine.configure(text=f"Line {line}:")
+    instr.configure(state="normal")
+    instr.delete(0.0, END)
+    instr.insert(END, text)
+    instr.configure(state="disabled")
+
+
+def setLineInternalFunction(text: str):
+    currentLine.configure(text=f"Internal function:")
     instr.configure(state="normal")
     instr.delete(0.0, END)
     instr.insert(END, text)
@@ -281,6 +278,20 @@ def setStatusRegs(n: bool, z: bool, c: bool, v: bool):
         V.configure(fg="#FF0000")
 
 
+def updateClock():
+    global clockTicked
+    # window.after(1000//clockSpeed, updateClock)
+    while not closed:
+        time.sleep(1.0/clockSpeed)
+        if closed:
+            break
+        if clockSetting.get() == "auto":
+            clockTicked = True
+
+
+clockThread = threading.Thread(target=updateClock)
+clockThread.start()
+
 # configure
 speedEntry.delete(0, END)
 speedEntry.insert(0, 5)
@@ -299,13 +310,3 @@ if __name__ == "__main__":
     instr.configure(state="disabled")
 
     window.mainloop()
-else:
-    pass
-    # import threading
-    #
-    # def run():
-    #     window.mainloop()
-    #
-    # guiThread = threading.Thread(target=run)
-    # guiThread.start()
-
