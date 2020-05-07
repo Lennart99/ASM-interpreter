@@ -28,6 +28,7 @@ def on_close():
     global closed
     closed = True
     window.destroy()
+    exit()
 
 
 window.protocol("WM_DELETE_WINDOW", on_close)
@@ -110,8 +111,6 @@ class RegisterEntry:
         self.write = False
 
     def setValue(self, val: int):
-        if closed:
-            exit()
         self.entry.configure(state="normal")
         self.entry.delete(0.0, END)
         self.entry.insert(END, val)
@@ -123,8 +122,6 @@ class RegisterEntry:
         self.entry.configure(state="disabled")
 
     def processRead(self):
-        if closed:
-            exit()
         self.read = True
         if self.write:
             self.entry.configure(fg="#0000FF")
@@ -132,8 +129,6 @@ class RegisterEntry:
             self.entry.configure(fg="#00FF00")
 
     def reset(self):
-        if closed:
-            exit()
         self.entry.configure(fg="#000000")
         self.read = False
         self.write = False
@@ -209,23 +204,15 @@ memContents.place(x=75 * 8, y=330)
 
 
 def resetRegs():
-    if closed:
-        exit()
     global reg_items
 
     def reset(reg: RegisterEntry):
         reg.reset()
         return reg
-    # for i in range(len(reg_items)):
-    #     reg = reg_items[i]
-    #     reg.reset()
-    #     reg_items[i] = reg
     reg_items = list(map(reset, reg_items))
 
 
 def initRegs(registers: List[int]):
-    if closed:
-        exit()
     global reg_items
 
     def init(e: Tuple[int, RegisterEntry]):
@@ -281,15 +268,14 @@ def setStatusRegs(n: bool, z: bool, c: bool, v: bool):
 def updateClock():
     global clockTicked
     # window.after(1000//clockSpeed, updateClock)
-    while not closed:
+    while True:
         time.sleep(1.0/clockSpeed)
-        if closed:
-            break
         if clockSetting.get() == "auto":
             clockTicked = True
 
 
 clockThread = threading.Thread(target=updateClock)
+clockThread.setDaemon(True)
 clockThread.start()
 
 # configure

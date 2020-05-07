@@ -49,8 +49,7 @@ def runLogger(node: nodes.InstructionNode, lines: List[str]):
             if isinstance(err, programState.StopProgram):
                 return state, err
             while not visualizer.clockTicked:
-                if visualizer.closed:
-                    return state, programState.StopProgram()
+                pass
             return state, err
         else:
             return node.function(state)
