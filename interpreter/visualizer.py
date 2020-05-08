@@ -6,7 +6,7 @@ import threading
 import time
 import builtins
 
-from high_order import foldR1
+from high_order import foldR1, foldL
 import programState
 import nodes
 
@@ -295,13 +295,16 @@ def printLine(*args, sep=' ', end='\n', file=None):
         else:
             return text
 
+    if end is None:
+        end = '\n'
+
     global consoleText
     __old_print(*args, sep=sep, end=end, file=file)
 
     if len(args) == 0:
-        consoleText += end
+        consoleText += str(end)
     else:
-        consoleText += stripColor(foldR1(lambda a, b: str(a)+sep+str(b), args) + end)
+        consoleText += stripColor(foldL(lambda text, add: text + str(sep) + str(add), str(args[0]), list(args[1:])) + str(end))
 
     console.configure(state="normal")
     console.delete(0.0, END)
