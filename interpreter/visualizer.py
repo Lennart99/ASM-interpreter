@@ -312,9 +312,6 @@ def printLine(*args, sep=' ', end='\n', file=None):
     console.configure(state="disabled")
 
 
-builtins.print = printLine
-
-
 def updateClock():
     global clockTicked
     while True:

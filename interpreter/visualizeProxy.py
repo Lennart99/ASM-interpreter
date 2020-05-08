@@ -1,6 +1,7 @@
 from functools import wraps
 from typing import List, Tuple
 from tkinter import END
+import builtins
 
 import visualizer
 import programState
@@ -73,6 +74,8 @@ def initRegs(registers: List[int]):
         reg.reset()
         return reg
     visualizer.reg_items = list(map(init, enumerate(visualizer.reg_items)))
+    # Replace the print function
+    builtins.print = visualizer.printLine
 
 
 def setLine(line: int, text: str):
