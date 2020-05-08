@@ -45,11 +45,13 @@ def runLogger(node: nodes.InstructionNode, lines: List[str]):
                 visualizer.setLineInternalFunction(node.name)
             else:
                 visualizer.setLine(node.line, lines[node.line-1].strip())
-            visualizer.clockTicked = False
             if isinstance(err, programState.StopProgram):
                 return state, err
             while not visualizer.clockTicked:
-                pass
+                if visualizer.memoryCommand is not None:
+                    state = visualizer.memoryCommand(state)
+                    visualizer.memoryCommand = None
+            visualizer.clockTicked = False
             return state, err
         else:
             return node.function(state)

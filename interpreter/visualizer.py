@@ -1,12 +1,13 @@
 import tkinter
 from tkinter import END, WORD
 
-from typing import List, Tuple
-import threading, time
+from typing import List, Tuple, Callable
+import threading
+import time
 
 from high_order import foldR1
 import programState
-import programStateProxy
+import nodes
 
 
 # De visualizer kan niet volledig functioneel geschreven worden.
@@ -16,6 +17,7 @@ import programStateProxy
 clockTicked: bool = False
 clockSpeed: int = 5
 closed = False
+memoryCommand: Callable[[programState.ProgramState], programState.ProgramState] = None
 
 # init window
 window = tkinter.Tk()
@@ -34,26 +36,90 @@ def on_close():
 window.protocol("WM_DELETE_WINDOW", on_close)
 
 
+def validateNumber(text: str) -> int:
+    if len(text) == 0:
+        print("\033[31m"
+              "Integer should not be empty"
+              "\033[0m")
+        return -1
+    try:
+        return int(text, 0)
+    except ValueError:
+        print(f"\033[31m"
+              f"This is not a valid integer: {text}"
+              f"\033[0m")
+        return -1
+
+
 # Button actions
 # Write mem
 def write():
-    p: programState.ProgramState = None
+    global memoryCommand
     if clockSetting.get() == "manual":
-        # TODO implement
-        cont = memContents.get()
-        print("'" + cont + "'")
+        addr = validateNumber(addressEntry.get())
+        contents = validateNumber(memContents.get())
+        if addr == -1:
+            return
+        if addr & 3 != 0:
+            print("\033[31m"
+                  "Error while handling button click: To store data in memory, the address needs to be a multiple of 4"
+                  "\033[0m")
+            return
+        internal_address = addr >> 2
+
+        def execute(state: programState.ProgramState) -> programState.ProgramState:
+            print("write", addr)
+            # check address is in range
+            if internal_address < 0 or internal_address >= len(state.memory):
+                print(f"\033[31m"
+                      f"Error while handling button click: Memory address out of range: {addr}, must be in range [0...{len(state.memory)*4}]"
+                      f"\033[0m")
+            else:
+                state.memory[internal_address] = nodes.DataNode(contents, "GUI")
+            return state
+        memoryCommand = execute
     else:
-        print("It is only possible to interact with memory in manual mode")
+        print("\033[31m"
+              "It is not possible to load the contents of an instruction"
+              "\033[0m")
 
 
 # Read mem
 def read():
+    global memoryCommand
     if clockSetting.get() == "manual":
-        # TODO implement
-        memContents.delete(0, END)
-        memContents.insert(0, 100)
+        addr = validateNumber(addressEntry.get())
+        if addr == -1:
+            return
+        if addr & 3 != 0:
+            print("\033[31m"
+                  "Error while handling button click: To read data from memory, the address needs to be a multiple of 4"
+                  "\033[0m")
+            return
+        internal_address = addr >> 2
+
+        def execute(state: programState.ProgramState) -> programState.ProgramState:
+            print("read", addr)
+            # check address is in range
+            if internal_address < 0 or internal_address >= len(state.memory):
+                print(f"\033[31m"
+                      f"Error while handling button click: Memory address out of range: {addr}, must be in range [0...{len(state.memory) * 4}]"
+                      f"\033[0m")
+                return state
+            word = state.memory[internal_address]
+            if isinstance(word, nodes.DataNode):
+                memContents.delete(0, END)
+                memContents.insert(0, word.value)
+            else:
+                print("\033[31m"
+                      "err"
+                      "\033[0m")
+            return state
+        memoryCommand = execute
     else:
-        print("It is only possible to interact with memory in manual mode")
+        print("\033[31m"
+              "It is only possible to interact with memory in manual mode"
+              "\033[0m")
 
 
 # Step to next instruction
@@ -63,11 +129,13 @@ def nextStep():
 
 
 def onClockModeChange():
+    global memoryCommand
     if clockSetting.get() == "manual":
         nextButton.configure(state="normal")
         readButton.configure(state="normal")
         writeButton.configure(state="normal")
     else:
+        memoryCommand = None
         nextButton.configure(state="disabled")
         readButton.configure(state="disabled")
         writeButton.configure(state="disabled")
@@ -76,13 +144,19 @@ def onClockModeChange():
 def checkClockSpeed(text: str) -> bool:
     global clockSpeed
     if len(text) == 0:
-        print("Integer should not be empty")
+        print("\033[31m"
+              "Integer should not be empty"
+              "\033[0m")
         return False
     if not text.isdigit():
-        print("This is not a valid integer:", text)
+        print(f"\033[31m"
+              f"This is not a valid integer: {text}"
+              f"\033[0m")
         return False
     if int(text, 0) == 0:
-        print("Integer should not be zero")
+        print("\033[31m"
+              "Integer should not be zero"
+              "\033[0m")
         return False
     clockSpeed = int(text, 0)
     return True
@@ -191,8 +265,8 @@ instr.place(x=75 * 8, y=200)
 tkinter.Label(window, text="Memory:", fg="#000000", font="none 14").place(x=75 * 8, y=240)
 
 tkinter.Label(window, text="Address: ", fg="#000000", font="none 14").place(x=75 * 8, y=270)
-addr = tkinter.Entry(window, width=10, bg="#DDDDDD")
-addr.place(x=690, y=275)
+addressEntry = tkinter.Entry(window, width=10, bg="#DDDDDD")
+addressEntry.place(x=690, y=275)
 
 writeButton = tkinter.Button(window, text="Write", width=5, command=write)
 writeButton.place(x=75 * 8, y=300)
@@ -267,10 +341,11 @@ def setStatusRegs(n: bool, z: bool, c: bool, v: bool):
 
 def updateClock():
     global clockTicked
-    # window.after(1000//clockSpeed, updateClock)
     while True:
-        time.sleep(1.0/clockSpeed)
         if clockSetting.get() == "auto":
+            # It isn't really possible to sleep for less then 2 ms
+            if clockSpeed < 500:
+                time.sleep(1.0/clockSpeed)
             clockTicked = True
 
 

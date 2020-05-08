@@ -92,4 +92,10 @@ def parseAndRun(fileName: str, stackSize: int, startLabel: str, useGUI: bool) ->
         visualizer.initRegs(state.registers)
 
     res = runProgram(state, fileName, lines)
+
+    # Disable the GUI when the program is finished
+    visualizer.nextButton.configure(state="disabled")
+    visualizer.readButton.configure(state="disabled")
+    visualizer.writeButton.configure(state="disabled")
+
     return res

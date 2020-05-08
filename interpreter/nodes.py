@@ -7,6 +7,7 @@ class Node:
         TEXT = 0
         BSS = 1
         DATA = 2
+        # No __str__ implemented because Enum implements it itself
 
     def __init__(self, section: Section, line: int):
         self.section: Node.Section = section
@@ -52,8 +53,8 @@ class SystemCall(InstructionNode):
         self.name = name
 
     def __str__(self) -> str:
-        return "{}({}, {}, {})".\
-            format(type(self).__name__, self.section, self.line, self.function)
+        return "{}({}, internal function {})".\
+            format(type(self).__name__, self.section, self.name)
 
 
 class ErrorNode(Node):
