@@ -1,5 +1,4 @@
 from typing import List
-from functools import wraps
 
 import nodes
 import programState
@@ -7,7 +6,7 @@ import programStateProxy
 import asmParser
 import lexer
 import tokens
-from high_order import foldR1, foldL
+from high_order import foldR1
 import visualizer
 import visualizeProxy
 
@@ -89,7 +88,7 @@ def parseAndRun(fileName: str, stackSize: int, startLabel: str, useGUI: bool) ->
     state = programStateProxy.generateProgramState(context, stackSize, startLabel, fileName, useGUI)
 
     if useGUI:
-        visualizer.initRegs(state.registers)
+        visualizeProxy.initRegs(state.registers)
 
     res = runProgram(state, fileName, lines)
 

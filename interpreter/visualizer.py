@@ -1,9 +1,10 @@
 import tkinter
 from tkinter import END, WORD
 
-from typing import List, Tuple, Callable
+from typing import List, Callable
 import threading
 import time
+import builtins
 
 from high_order import foldR1
 import programState
@@ -276,67 +277,39 @@ readButton.place(x=75 * 9, y=300)
 memContents = tkinter.Entry(window, width=10, bg="#DDDDDD")
 memContents.place(x=75 * 8, y=330)
 
-
-def resetRegs():
-    global reg_items
-
-    def reset(reg: RegisterEntry):
-        reg.reset()
-        return reg
-    reg_items = list(map(reset, reg_items))
+consoleText = ''
+console = tkinter.Text(window, width=70, height=16, wrap=WORD, bg="#2B2B2B", fg="#DDDDDD", state='disabled')
+console.place(x=0, y=155)
+__old_print = builtins.print
 
 
-def initRegs(registers: List[int]):
-    global reg_items
+def printLine(*args, sep=' ', end='\n', file=None):
+    def stripColor(text: str) -> str:
+        if "\033[" in text:
+            idx = text.index("\033[")
+            if "m" in text[idx+2:idx+5]:
+                mIdx = text.index("m", idx+2, idx+5)
+                return stripColor(text[:idx] + text[mIdx + 1:])
+            else:
+                return stripColor(text[:idx] + text[idx + 2:])
+        else:
+            return text
 
-    def init(e: Tuple[int, RegisterEntry]):
-        idx, reg = e
-        reg.setValue(registers[idx])
-        reg.reset()
-        return reg
-    # for i in range(len(reg_items)):
-    #     reg = reg_items[i]
-    #     reg.reset()
-    #     reg_items[i] = reg
-    reg_items = list(map(init, enumerate(reg_items)))
+    global consoleText
+    __old_print(*args, sep=sep, end=end, file=file)
 
-
-def setLine(line: int, text: str):
-    currentLine.configure(text=f"Line {line}:")
-    instr.configure(state="normal")
-    instr.delete(0.0, END)
-    instr.insert(END, text)
-    instr.configure(state="disabled")
-
-
-def setLineInternalFunction(text: str):
-    currentLine.configure(text=f"Internal function:")
-    instr.configure(state="normal")
-    instr.delete(0.0, END)
-    instr.insert(END, text)
-    instr.configure(state="disabled")
-
-
-def setStatusRegs(n: bool, z: bool, c: bool, v: bool):
-    if n:
-        N.configure(fg="#00FF00")
+    if len(args) == 0:
+        consoleText += end
     else:
-        N.configure(fg="#FF0000")
+        consoleText += stripColor(foldR1(lambda a, b: str(a)+sep+str(b), args) + end)
 
-    if z:
-        Z.configure(fg="#00FF00")
-    else:
-        Z.configure(fg="#FF0000")
+    console.configure(state="normal")
+    console.delete(0.0, END)
+    console.insert(END, consoleText)
+    console.configure(state="disabled")
 
-    if c:
-        C.configure(fg="#00FF00")
-    else:
-        C.configure(fg="#FF0000")
 
-    if v:
-        V.configure(fg="#00FF00")
-    else:
-        V.configure(fg="#FF0000")
+builtins.print = printLine
 
 
 def updateClock():
@@ -369,5 +342,8 @@ if __name__ == "__main__":
     instr.delete(0.0, END)
     instr.insert(END, "mov r1, #'A'     // 65")
     instr.configure(state="disabled")
+
+    for i in range(32):
+        print("line", i, 'test', sep=';', end='\\')
 
     window.mainloop()
