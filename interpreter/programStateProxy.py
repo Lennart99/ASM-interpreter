@@ -1,6 +1,6 @@
 from typing import List, Dict, Tuple, Union
 
-from programState import ProgramState, StatusRegister, regToID, RunError, StopProgram, InstructionNode, SystemCall
+from programState import ProgramState, StatusRegister, RunError, StopProgram, InstructionNode, SystemCall, regToID
 import visualizeProxy
 import nodes
 import programContext
@@ -24,7 +24,7 @@ def getReg(state: ProgramState, name: str) -> int:
 # setALUState:: ProgramState -> StatusRegister -> ProgramState
 # set the status register
 @visualizeProxy.statusLogger
-def setALUState(state: ProgramState, value: StatusRegister) -> Union[ProgramState, RunError]:
+def setALUState(state: ProgramState, value: StatusRegister) -> ProgramState:
     state.status = value
     return state
 

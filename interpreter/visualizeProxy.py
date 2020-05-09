@@ -1,35 +1,44 @@
 from functools import wraps
-from typing import List, Tuple
+from typing import List, Tuple, Union, Callable
 from tkinter import END
 import builtins
 
 import visualizer
 import programState
-import nodes
 
 
 # Decorators
-def writeLogger(f):
+
+# Updates the visualizer when a register is changed
+# writeLogger:: (ProgramState -> String -> int -> ProgramState) -> (ProgramState -> String -> int -> ProgramState)
+def writeLogger(f: Callable[[programState.ProgramState, str, int], programState.ProgramState]) -> Callable[[programState.ProgramState, str, int], programState.ProgramState]:
     @wraps(f)
-    def inner(state: programState.ProgramState, name: str, value: int):
+    # inner:: ProgramState -> String -> int -> ProgramState
+    def inner(state: programState.ProgramState, name: str, value: int) -> programState.ProgramState:
         if state.visualizer:
             visualizer.reg_items[programState.regToID(name)].setValue(value)
         return f(state, name, value)
     return inner
 
 
-def readLogger(f):
+# Updates the visualizer when a register is read
+# readLogger:: (ProgramState -> String -> int) -> (ProgramState -> String -> int)
+def readLogger(f: Callable[[programState.ProgramState, str], int]) -> Callable[[programState.ProgramState, str], int]:
     @wraps(f)
-    def inner(state: programState.ProgramState, name: str):
+    # inner:: ProgramState -> String -> int
+    def inner(state: programState.ProgramState, name: str) -> int:
         if state.visualizer:
             visualizer.reg_items[programState.regToID(name)].processRead()
         return f(state, name)
     return inner
 
 
-def statusLogger(f):
+# Updates the visualizer when the status register is changed
+# statusLogger:: (ProgramState -> StatusRegister -> ProgramState) -> (ProgramState -> StatusRegister -> ProgramState)
+def statusLogger(f: Callable[[programState.ProgramState, programState.StatusRegister], programState.ProgramState]) -> Callable[[programState.ProgramState, programState.StatusRegister], programState.ProgramState]:
     @wraps(f)
-    def inner(state: programState.ProgramState, value: programState.StatusRegister):
+    # inner:: ProgramState -> StatusRegister -> ProgramState
+    def inner(state: programState.ProgramState, value: programState.StatusRegister) -> programState.ProgramState:
         if state.visualizer:
             setStatusRegs(value.N, value.Z, value.C, value.V)
         return f(state, value)
@@ -37,13 +46,15 @@ def statusLogger(f):
 
 
 # Decorator to update the visualizer and wait until the next instruction can be executed
-def runLogger(node: nodes.InstructionNode, lines: List[str]):
+# runLogger:: InstructionNode -> [String] -> (ProgramState -> (ProgramState, RunError))
+def runLogger(node: programState.InstructionNode, lines: List[str]) -> Callable[[programState.ProgramState], Tuple[programState.ProgramState, programState.RunError]]:
     @wraps(node.function)
-    def inner(state: programState.ProgramState):
+    # inner:: ProgramState -> (ProgramState, RunError)
+    def inner(state: programState.ProgramState) -> Tuple[programState.ProgramState, programState.RunError]:
         if state.visualizer:
             resetRegs()
             state, err = node.function(state)
-            if isinstance(node, nodes.SystemCall):
+            if isinstance(node, programState.SystemCall):
                 setLineInternalFunction(node.name)
             else:
                 setLine(node.line, lines[node.line-1].strip())
@@ -60,15 +71,19 @@ def runLogger(node: nodes.InstructionNode, lines: List[str]):
     return inner
 
 
+# Resets the color of the resisters in the visualizer
 def resetRegs():
-    def reset(reg: visualizer.RegisterEntry):
+    # reset:: RegisterEntry -> RegisterEntry
+    def reset(reg: visualizer.RegisterEntry) -> visualizer.RegisterEntry:
         reg.reset()
         return reg
     visualizer.reg_items = list(map(reset, visualizer.reg_items))
 
 
+# Initialize the registers in the visualizer with there actual values
 def initRegs(registers: List[int]):
-    def init(e: Tuple[int, visualizer.RegisterEntry]):
+    # init:: (int, RegisterEntry) -> RegisterEntry
+    def init(e: Tuple[int, visualizer.RegisterEntry]) -> visualizer.RegisterEntry:
         idx, reg = e
         reg.setValue(registers[idx])
         reg.reset()
@@ -78,6 +93,8 @@ def initRegs(registers: List[int]):
     builtins.print = visualizer.printLine
 
 
+# Update the current instruction and its location in the visualizer
+# setLine:: String -> int -> void
 def setLine(line: int, text: str):
     visualizer.currentLine.configure(text=f"Line {line}:")
     visualizer.instr.configure(state="normal")
@@ -86,6 +103,8 @@ def setLine(line: int, text: str):
     visualizer.instr.configure(state="disabled")
 
 
+# Update the current instruction and its location in the visualizer to a internal function
+# setLineInternalFunction:: String -> void
 def setLineInternalFunction(text: str):
     visualizer.currentLine.configure(text=f"Internal function:")
     visualizer.instr.configure(state="normal")
@@ -94,6 +113,8 @@ def setLineInternalFunction(text: str):
     visualizer.instr.configure(state="disabled")
 
 
+# Set the colors of the statusRegister section of the visualizer to the actual contents of the statusRegister
+# setStatusRegs:: bool -> bool -> bool -> bool -> void
 def setStatusRegs(n: bool, z: bool, c: bool, v: bool):
     if n:
         visualizer.N.configure(fg="#00FF00")

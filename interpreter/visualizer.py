@@ -27,6 +27,7 @@ window.geometry("850x450")
 window.resizable(0, 0)
 
 
+# Event handler to handle the closing of the visualizer window
 def on_close():
     global closed
     closed = True
@@ -37,6 +38,8 @@ def on_close():
 window.protocol("WM_DELETE_WINDOW", on_close)
 
 
+# Validates that a string is a number, returns the number or -1 when it is not a number
+# validateNumber:: String -> int
 def validateNumber(text: str) -> int:
     if len(text) == 0:
         print("\033[31m"
@@ -53,7 +56,7 @@ def validateNumber(text: str) -> int:
 
 
 # Button actions
-# Write mem
+# Handles the button to write data to memory
 def write():
     global memoryCommand
     if clockSetting.get() == "manual":
@@ -85,7 +88,7 @@ def write():
               "\033[0m")
 
 
-# Read mem
+# Handles the button to read data from memory
 def read():
     global memoryCommand
     if clockSetting.get() == "manual":
@@ -123,12 +126,13 @@ def read():
               "\033[0m")
 
 
-# Step to next instruction
+# Handles the button to step to next instruction
 def nextStep():
     global clockTicked
     clockTicked = True
 
 
+# Called when the clock mode is changed
 def onClockModeChange():
     global memoryCommand
     if clockSetting.get() == "manual":
@@ -142,6 +146,9 @@ def onClockModeChange():
         writeButton.configure(state="disabled")
 
 
+# Validate the text is a number and not negative, returns True if the text was a valid number
+# this function updates the clocksSpeed automatically
+# checkClockSpeed:: String -> bool
 def checkClockSpeed(text: str) -> bool:
     global clockSpeed
     if len(text) == 0:
@@ -163,6 +170,7 @@ def checkClockSpeed(text: str) -> bool:
     return True
 
 
+# generate the tkinter command
 clockCommand = window.register(checkClockSpeed)
 
 # registers
@@ -216,6 +224,7 @@ class RegisterEntry:
         return self.__str__()
 
 
+# List with all register entries in the visualizer
 reg_items: List[RegisterEntry] = reduce(
     lambda a, b: a+b,
     list(map(
@@ -227,7 +236,7 @@ reg_items: List[RegisterEntry] = reduce(
     ))
 )
 
-# Status reg
+# Status register
 tkinter.Label(window, text="Status register:", fg="#000000", font="none 14").place(x=75 * 8, y=0)
 
 tkinter.Label(window, text="On", fg="#00FF00", font="none 14").place(x=75 * 10, y=0)
@@ -243,18 +252,19 @@ C.place(x=(75 * 9)+80, y=30)
 V = tkinter.Label(window, text="V", fg="#FF0000", font="none 14")
 V.place(x=(75 * 9)+120, y=30)
 
-# CLOCK
+# Clock
 tkinter.Label(window, text="Clock:", fg="#000000", font="none 14").place(x=75 * 8, y=60)
 nextButton = tkinter.Button(window, text="NEXT", width=5, command=nextStep)
 nextButton.place(x=75 * 8, y=90)
 
-# switch
+# Clock mode switch
 clockSettingFrame = tkinter.Frame(window)
 clockSetting = tkinter.StringVar(value="manual")
 tkinter.Radiobutton(clockSettingFrame, text="manual", variable=clockSetting, indicatoron=False, value="manual", width=8, command=onClockModeChange).pack(side="left")
 tkinter.Radiobutton(clockSettingFrame, text="auto", variable=clockSetting, indicatoron=False, value="auto", width=8, command=onClockModeChange).pack(side="left")
 clockSettingFrame.place(x=75 * 9, y=90)
 
+# Clock speed setting
 tkinter.Label(window, text="Speed: ", fg="#000000", font="none 14").place(x=75 * 8, y=120)
 speedEntry = tkinter.Entry(window, width=3, bg="#DDDDDD", font="none 10", validate='focusout', validatecommand=(clockCommand, '%P'))
 speedEntry.place(x=75 * 9, y=125)
@@ -284,12 +294,16 @@ readButton.place(x=75 * 9, y=300)
 memContents = tkinter.Entry(window, width=10, bg="#DDDDDD")
 memContents.place(x=75 * 8, y=330)
 
+# Console
 consoleText = ''
 console = tkinter.Text(window, width=70, height=16, wrap=WORD, bg="#2B2B2B", fg="#DDDDDD", state='disabled')
 console.place(x=0, y=155)
+# save the old print function to print to the console
 __old_print = builtins.print
 
 
+# Overrides the print function to forward all output to the visualizer
+# printLine:: [any] -> String -> String -> Stream -> void
 def printLine(*args, sep=' ', end='\n', file=None):
     def stripColor(text: str) -> str:
         if "\033[" in text:
@@ -319,6 +333,7 @@ def printLine(*args, sep=' ', end='\n', file=None):
     console.configure(state="disabled")
 
 
+# function to tick the clock periodically when the clock mode is set to auto
 def updateClock():
     global clockTicked
     while True:
@@ -333,10 +348,12 @@ clockThread = threading.Thread(target=updateClock)
 clockThread.setDaemon(True)
 clockThread.start()
 
-# configure
+
+# Configure the speed entry
 speedEntry.delete(0, END)
 speedEntry.insert(0, 5)
 
+# Test code
 if __name__ == "__main__":
     reg_items[0].setValue(1_000_000_000)
     reg_items[0].reset()
