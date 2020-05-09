@@ -27,5 +27,14 @@ These conditional branch instructions are supported:
 - BVC: No overflow
 - BVS: Overflow
 
+### error detection
+
+To enable the userr to find problenms in their code easily, clear errors are thrown when problems orccur. When a runtime errror occurs, a stacktrace is printed to make it easy to trace the problem back.
+
+![alt text](pictures/stacktrace.png)
+
 ### The visualizer
 
+Using the visualizer, the register processor can be viewed easily to make debugging code easier. It is also possible to single-step the program to see exactly when the program broke. The current instruction and its location in the source code is shown to make it easy to find the instruction in the source code.
+
+![alt text](pictures/visualizer.png)
