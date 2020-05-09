@@ -1,15 +1,15 @@
 from typing import Union, Any, Match, Callable, List
 import re
+from functools import reduce
 
 import tokens
-from high_order import foldL
 import instructions
 
 # Possible instructions for ARM Cortex M0 assembly
 INSTRUCTIONS = list(instructions.tokenFunctions.keys())
 
 # Regular expression with possible instructions
-R_INSTRUCTION = r"(?P<INSTRUCTION>" + foldL(lambda text, instr: text + "[ \t]|" + instr, INSTRUCTIONS[0], INSTRUCTIONS[1:]) + ")|"
+R_INSTRUCTION = r"(?P<INSTRUCTION>" + reduce(lambda text, instr: text + "[ \t]|" + instr, INSTRUCTIONS) + "[ \t])|"
 
 # ^[^\d\W] matches a character that is a letter or a underscore at the start of the string
 # \w*\Z matches a letter, a number or a underscore at the rest of the string

@@ -1,12 +1,12 @@
 import tkinter
 from tkinter import END, WORD
 
+from functools import reduce
 from typing import List, Callable
 import threading
 import time
 import builtins
 
-from high_order import foldR1, foldL
 import programState
 import nodes
 
@@ -179,6 +179,7 @@ regs = [["R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7"], ["R8", "R9", "R10", "R
 
 class RegisterEntry:
     def __init__(self, name: str, column: int, line: int):
+        self.name = name
         tkinter.Label(window, text=name, fg="#000000", font="none 12").place(x=75 * column, y=30 + (60 * line))
         self.entry = tkinter.Text(window, height=1, width=10, bg="#DDDDDD", fg="#000000", font="none 10", state='disabled')
         self.entry.place(x=75 * column, y=60 + (60 * line))
@@ -208,8 +209,14 @@ class RegisterEntry:
         self.read = False
         self.write = False
 
+    def __str__(self):
+        return f"RegisterEntry({self.name})"
 
-reg_items: List[RegisterEntry] = foldR1(
+    def __repr__(self):
+        return self.__str__()
+
+
+reg_items: List[RegisterEntry] = reduce(
     lambda a, b: a+b,
     list(map(
         lambda l: list(map(
@@ -304,7 +311,7 @@ def printLine(*args, sep=' ', end='\n', file=None):
     if len(args) == 0:
         consoleText += str(end)
     else:
-        consoleText += stripColor(foldL(lambda text, add: text + str(sep) + str(add), str(args[0]), list(args[1:])) + str(end))
+        consoleText += stripColor(reduce(lambda text, add: str(text) + str(sep) + str(add), list(args)) + str(end))
 
     console.configure(state="normal")
     console.delete(0.0, END)

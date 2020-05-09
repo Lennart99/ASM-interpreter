@@ -1,4 +1,5 @@
 from typing import List
+from functools import reduce
 
 import nodes
 import programState
@@ -6,7 +7,6 @@ import programStateProxy
 import asmParser
 import lexer
 import tokens
-from high_order import foldR1
 import visualizer
 import visualizeProxy
 
@@ -35,7 +35,7 @@ def generateStacktrace(state: programState.ProgramState, error: programState.Run
     res += generateStacktraceElement(state, programStateProxy.getReg(state, "PC"), fileName, lines) + '\n'
     if not state.hasReturned:
         res += generateStacktraceElement(state, programStateProxy.getReg(state, "LR"), fileName, lines) + '\n'
-    res += foldR1(lambda a, b: a + "\n" + b, callbacks) + '\n'
+    res += reduce(lambda a, b: a + "\n" + b, callbacks) + '\n'
     res += error.message + '\n'
     return res + f"\033[0m"  # Normal color
 
@@ -72,7 +72,7 @@ def parseAndRun(fileName: str, stackSize: int, startLabel: str, useGUI: bool) ->
     file = open(fileName, "r")
     lines = file.readlines()
 
-    file_contents: str = foldR1(lambda X, Y: X + Y, lines)
+    file_contents: str = reduce(lambda X, Y: X + Y, lines)
 
     loadedTokens = lexer.lexFile(file_contents)
     loadedTokens: List[tokens.Token] = lexer.fixMismatches(loadedTokens, file_contents)

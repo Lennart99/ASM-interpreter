@@ -11,8 +11,6 @@ useGUI = True
 stackSize = 0x40
 startLabel = "_start"
 
-print(sys.argv)
-
 t = threading.Thread(target=lambda: interpreter.parseAndRun(fileName, stackSize, startLabel, useGUI))
 t.setDaemon(True)
 t.start()

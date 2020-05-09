@@ -1,9 +1,9 @@
 from typing import Union, Callable, List, Tuple
+from functools import reduce
 
 import instructions
 import nodes
 import tokens
-from high_order import foldR1
 from programContext import ProgramContext
 
 
@@ -93,7 +93,7 @@ def decodeStringLiteral(directive: tokens.Token, tokenList: List[tokens.Token], 
     else:
         lists = list(map(lambda s: list(map(lambda c: ord(c), replaceEscapedChars(s.contents[1:-1]))), strings))
 
-    lst = foldR1(lambda a, b: a + b, lists)
+    lst = reduce(lambda a, b: a + b, lists)
     lst = bytesToInt(lst)
     dataNodes = list(map(lambda x: nodes.DataNode(x, "CODE", section, directive.line), lst))
 
@@ -232,7 +232,7 @@ def parse(tokenList: List[tokens.Token], context: ProgramContext = ProgramContex
     elif isinstance(head, tokens.Skip):
         chars = list(map(lambda c: c, head.contents))
 
-        number = foldR1(lambda a, b: (a + b) if a in "0123456789" else b, chars)
+        number = reduce(lambda a, b: (a + b) if a in "0123456789" else b, chars)
         n_skip = int(number) >> 2
         if n_skip > 0:
             def generateSkipNodes(n: int):
