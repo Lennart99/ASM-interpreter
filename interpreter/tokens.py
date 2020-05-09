@@ -91,15 +91,6 @@ class Separator(Token):
     pass
 
 
-# class Comment(Token):
-#     def __init__(self, contents: str, idx: int, line: int):
-#         super().__init__(contents, idx, line)
-#
-#     def __str__(self) -> str:
-#         return "{}('{}')".\
-#             format(type(self).__name__, self.contents.replace('\n', '\\n'))
-
-
 class StringLiteral(Token):
     def __init__(self, contents: str, idx: int, line: int):
         super().__init__(contents, idx, line)

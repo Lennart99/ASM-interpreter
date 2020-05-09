@@ -1,6 +1,6 @@
 from typing import List, Dict, Tuple, Union
 
-from programState import ProgramState, StatusRegister, regToID, RunError, StopProgram
+from programState import ProgramState, StatusRegister, regToID, RunError, StopProgram, InstructionNode, SystemCall
 import visualizeProxy
 import nodes
 import programContext
@@ -60,7 +60,7 @@ def loadRegister(state: ProgramState, address: int, bitsize: int, register: str)
 
 
 # getInstructionFromMem:: ProgramState -> int -> InstructionNode
-def getInstructionFromMem(state: ProgramState, address: int) -> Union[nodes.InstructionNode, RunError]:
+def getInstructionFromMem(state: ProgramState, address: int) -> Union[InstructionNode, RunError]:
     if (address & 3) != 0:
         return RunError("To load an instruction from memory, the address needs to be a multiple of 4", RunError.ErrorType.Error)
 
@@ -70,7 +70,7 @@ def getInstructionFromMem(state: ProgramState, address: int) -> Union[nodes.Inst
         return RunError(f"memory address out of range: {address}, must be in range [0...{len(state.memory) * 4}]", RunError.ErrorType.Error)
 
     word = state.memory[internal_address]
-    if isinstance(word, nodes.InstructionNode):
+    if isinstance(word, InstructionNode):
         return word
     else:
         return RunError("Loaded data is no instruction", RunError.ErrorType.Error)
@@ -174,10 +174,10 @@ def convertLabelsToDict(labelList: List[nodes.Label], stackSize: int, textSize: 
 # generateProgramState:: ProgramContext -> int -> String -> String -> ProgramState
 # Generate a ProgramState based on a ProgramContext
 def generateProgramState(context: programContext.ProgramContext, stackSize: int, startLabel: str, fileName: str, useGUI: bool) -> ProgramState:
-    text = context.text + [nodes.SystemCall(subroutine_print_char, "print_char"),
+    text = context.text + [SystemCall(subroutine_print_char, "print_char"),
                            # Subroutine to start the program and stop it afterwards
-                           nodes.SystemCall(lambda s: branchToLabel(s, startLabel), "__STARTUP"),
-                           nodes.SystemCall(lambda s: (s, StopProgram()), "__STARTUP")
+                           SystemCall(lambda s: branchToLabel(s, startLabel), "__STARTUP"),
+                           SystemCall(lambda s: (s, StopProgram()), "__STARTUP")
                            ]
 
     mem: List[nodes.Node] = [nodes.DataNode(0, "SETUP") for _ in range(stackSize >> 2)] + text + context.bss + context.data

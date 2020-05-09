@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Callable, Tuple
 from enum import Enum
 
 import nodes
@@ -59,6 +59,28 @@ class ProgramState:
 
     def __repr__(self) -> str:
         return self.__str__()
+
+
+class InstructionNode(nodes.Node):
+    # InstructionNode:: Node.Section -> int -> (ProgramState -> (ProgramState, RunError)) -> InstructionNode
+    def __init__(self, section: nodes.Node.Section, line: int, func: Callable[[ProgramState], Tuple[ProgramState, RunError]]):
+        super().__init__(section, line)
+        self.function: Callable[[ProgramState], Tuple[ProgramState, RunError]] = func
+
+    def __str__(self) -> str:
+        return "{}({}, {}, {})".\
+            format(type(self).__name__, self.section, self.line, self.function)
+
+
+class SystemCall(InstructionNode):
+    # InstructionNode:: Node.Section -> int -> (ProgramState -> (ProgramState, RunError)) -> InstructionNode
+    def __init__(self, func: Callable[[ProgramState], Tuple[ProgramState, RunError]], name: str):
+        super().__init__(nodes.Node.Section.TEXT, -1, func)
+        self.name = name
+
+    def __str__(self) -> str:
+        return "{}({}, internal function {})".\
+            format(type(self).__name__, self.section, self.name)
 
 
 # regToID:: str -> int

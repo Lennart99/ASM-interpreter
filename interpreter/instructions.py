@@ -70,7 +70,7 @@ def decodeMOV(tokenList: List[tokens.Token], section: nodes.Node.Section) -> Tup
             def movReg(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
                 value = programStateProxy.getReg(state, src.contents)
                 return programStateProxy.setReg(state, dest.contents, value), None
-            return nodes.InstructionNode(section, dest.line, movReg), tokenList
+            return programState.InstructionNode(section, dest.line, movReg), tokenList
         elif isinstance(src, tokens.ImmediateValue):
             # check 8 bits
             if src.value > 0xFF:
@@ -78,7 +78,7 @@ def decodeMOV(tokenList: List[tokens.Token], section: nodes.Node.Section) -> Tup
 
             def movImmed(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
                 return programStateProxy.setReg(state, dest.contents, src.value), None
-            return nodes.InstructionNode(section, dest.line, movImmed), tokenList
+            return programState.InstructionNode(section, dest.line, movImmed), tokenList
         else:
             # Wrong token, generate an error
             return generateUnexpectedTokenError(src.line, src.contents, "a register or an immediate value"), advanceToNewline(tokenList)
@@ -107,7 +107,7 @@ def decodeLDR(tokenList: List[tokens.Token], section: nodes.Node.Section, bitSiz
 
             def ldrImmed(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
                 return programStateProxy.setReg(state, dest.contents, value), None
-            return nodes.InstructionNode(section, dest.line, ldrImmed), tokenList
+            return programState.InstructionNode(section, dest.line, ldrImmed), tokenList
         elif isinstance(separator, tokens.LoadLabel):
             label: tokens.LoadLabel = separator
 
@@ -117,7 +117,7 @@ def decodeLDR(tokenList: List[tokens.Token], section: nodes.Node.Section, bitSiz
                     return state, val
                 else:
                     return programStateProxy.setReg(state, dest.contents, val), None
-            return nodes.InstructionNode(section, dest.line, ldrLabel), tokenList
+            return programState.InstructionNode(section, dest.line, ldrLabel), tokenList
         elif isinstance(separator, tokens.Separator) and separator.contents == "[":
             if len(tokenList) < 2:
                 return generateToFewTokensError(dest.line, "LDR instruction"), []
@@ -134,7 +134,7 @@ def decodeLDR(tokenList: List[tokens.Token], section: nodes.Node.Section, bitSiz
                         return state, newState
                     else:
                         return newState, None
-                return nodes.InstructionNode(section, dest.line, ldrOneReg), tokenList
+                return programState.InstructionNode(section, dest.line, ldrOneReg), tokenList
             elif isinstance(separator, tokens.Separator) and separator.contents == ",":
                 if len(tokenList) < 2:
                     return generateToFewTokensError(dest.line, "LDR instruction"), []
@@ -150,7 +150,7 @@ def decodeLDR(tokenList: List[tokens.Token], section: nodes.Node.Section, bitSiz
                             return state, newState
                         else:
                             return newState, None
-                    return nodes.InstructionNode(section, dest.line, ldrDualReg), tokenList
+                    return programState.InstructionNode(section, dest.line, ldrDualReg), tokenList
                 elif isinstance(src2, tokens.ImmediateValue):
                     src2: tokens.ImmediateValue = src2
                     value: int = src2.value
@@ -184,7 +184,7 @@ def decodeLDR(tokenList: List[tokens.Token], section: nodes.Node.Section, bitSiz
                             return state, newState
                         else:
                             return newState, None
-                    return nodes.InstructionNode(section, dest.line, ldrRegImmed), tokenList
+                    return programState.InstructionNode(section, dest.line, ldrRegImmed), tokenList
                 else:
                     # Wrong token, generate an error
                     return generateUnexpectedTokenError(src2.line, src2.contents, "a register or an immediate value"), advanceToNewline(tokenList)
@@ -230,7 +230,7 @@ def decodeSTR(tokenList: List[tokens.Token], section: nodes.Node.Section, bitSiz
                         return state, newState
                     else:
                         return newState, None
-                return nodes.InstructionNode(section, src.line, strOneReg), tokenList
+                return programState.InstructionNode(section, src.line, strOneReg), tokenList
             elif isinstance(separator, tokens.Separator) and separator.contents == ",":
                 if len(tokenList) < 2:
                     return generateToFewTokensError(src.line, "STR instruction"), []
@@ -246,7 +246,7 @@ def decodeSTR(tokenList: List[tokens.Token], section: nodes.Node.Section, bitSiz
                             return state, newState
                         else:
                             return newState, None
-                    return nodes.InstructionNode(section, src.line, strDualReg), tokenList
+                    return programState.InstructionNode(section, src.line, strDualReg), tokenList
                 elif isinstance(dest2, tokens.ImmediateValue):
                     dest2: tokens.ImmediateValue = dest2
                     value: int = dest2.value
@@ -280,7 +280,7 @@ def decodeSTR(tokenList: List[tokens.Token], section: nodes.Node.Section, bitSiz
                             return state, newState
                         else:
                             return newState, None
-                    return nodes.InstructionNode(section, src.line, strRegImmed), tokenList
+                    return programState.InstructionNode(section, src.line, strRegImmed), tokenList
                 else:
                     # Wrong token, generate an error
                     return generateUnexpectedTokenError(dest2.line, dest2.contents, "a register or an immediate value"), advanceToNewline(tokenList)
@@ -351,7 +351,7 @@ def decodePUSH(tokenList: List[tokens.Token], section: nodes.Node.Section) -> Tu
         state = programStateProxy.setReg(state, "SP", address)
         return push(state, tail)
 
-    return nodes.InstructionNode(section, regs[0].line, lambda x: push(x, regs)), tokenList
+    return programState.InstructionNode(section, regs[0].line, lambda x: push(x, regs)), tokenList
 
 
 # decodePOP:: [Token] -> Node.Section -> (Node, [Token])
@@ -375,7 +375,7 @@ def decodePOP(tokenList: List[tokens.Token], section: nodes.Node.Section) -> Tup
         state = programStateProxy.setReg(state, "SP", address + 4)
         return pop(state, tail)
 
-    return nodes.InstructionNode(section, regs[0].line, lambda x: pop(x, list(reversed(regs)))), tokenList
+    return programState.InstructionNode(section, regs[0].line, lambda x: pop(x, list(reversed(regs)))), tokenList
 
 
 # decodeALUInstruction:: [Token] -> Section ->
@@ -493,7 +493,7 @@ def decodeSUB(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
             return state, newState
         else:
             return newState, None
-    return nodes.InstructionNode(section, line, run)
+    return programState.InstructionNode(section, line, run)
 
 
 # decodeADD:: Node.Section -> int -> String -> Either int String -> Either int String None -> Node
@@ -560,7 +560,7 @@ def decodeADD(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
             return state, newState
         else:
             return newState, None
-    return nodes.InstructionNode(section, line, run)
+    return programState.InstructionNode(section, line, run)
 
 
 # decodeCMP:: Node.Section -> int -> String -> Either int String -> Either int String None -> Node
@@ -607,7 +607,7 @@ def decodeCMP(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
         else:
             return newState, None
 
-    return nodes.InstructionNode(section, line, run)
+    return programState.InstructionNode(section, line, run)
 
 
 # decodeB:: Iterator[tokens.Token] -> Node.Section -> Node
@@ -629,7 +629,7 @@ def decodeBranch(tokenList: List[tokens.Token], section: nodes.Node.Section,
             else:
                 return state, None
 
-        return nodes.InstructionNode(section, label.line, branchTo), tokenList
+        return programState.InstructionNode(section, label.line, branchTo), tokenList
     else:
         # Wrong token, generate an error
         return generateUnexpectedTokenError(label.line, label.contents, "a label"), advanceToNewline(tokenList)
@@ -656,7 +656,7 @@ def decodeBL(tokenList: List[tokens.Token], section: nodes.Node.Section) -> Tupl
                 state.hasReturned = False
                 return state, None
 
-        return nodes.InstructionNode(section, label.line, branchTo), tokenList
+        return programState.InstructionNode(section, label.line, branchTo), tokenList
     else:
         # Wrong token, generate an error
         return generateUnexpectedTokenError(label.line, label.contents, "a label"), advanceToNewline(tokenList)

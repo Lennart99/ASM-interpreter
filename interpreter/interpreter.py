@@ -14,8 +14,8 @@ import visualizeProxy
 # generateStacktraceElement:: ProgramState -> int -> String -> [String] -> String
 # Generates a stacktrace element from an instruction address
 def generateStacktraceElement(state: programState.ProgramState, address: int, fileName: str, lines: List[str]) -> str:
-    instr: nodes.InstructionNode = programStateProxy.getInstructionFromMem(state, address)
-    if isinstance(instr, nodes.SystemCall):
+    instr: programState.InstructionNode = programStateProxy.getInstructionFromMem(state, address)
+    if isinstance(instr, programState.SystemCall):
         return f"\tInternal function: {instr.name}"
     return f"\tFile \"{fileName}\", line {instr.line}:\n\t\t{lines[instr.line-1].strip()}"
 
@@ -42,8 +42,8 @@ def generateStacktrace(state: programState.ProgramState, error: programState.Run
 
 # runProgram:: ProgramState -> (ProgramState -> RunError -> String) -> ProgramState
 def runProgram(state: programState.ProgramState, fileName: str, lines: List[str]) -> programState.ProgramState:
-    node: nodes.InstructionNode = programStateProxy.getInstructionFromMem(state, programStateProxy.getReg(state, "PC"))
-    if isinstance(node, nodes.InstructionNode):
+    node: programState.InstructionNode = programStateProxy.getInstructionFromMem(state, programStateProxy.getReg(state, "PC"))
+    if isinstance(node, programState.InstructionNode):
         # Execute the instruction
         state, err = visualizeProxy.runLogger(node, lines)(state)
         # Exception handling

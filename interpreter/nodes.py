@@ -1,4 +1,3 @@
-from typing import Callable, Any, Tuple
 from enum import Enum
 
 
@@ -31,30 +30,6 @@ class DataNode(Node):
     def __str__(self) -> str:
         return "{}({})".\
             format(type(self).__name__, hex(self.value))
-
-
-class InstructionNode(Node):
-    # InstructionNode:: Node.Section -> int -> (ProgramState -> (ProgramState, RunError)) -> InstructionNode
-    # can't add type parameters to func because of a circular import
-    def __init__(self, section: Node.Section, line: int, func: Callable[[Any], Tuple[Any, Any]]):
-        super().__init__(section, line)
-        self.function = func
-
-    def __str__(self) -> str:
-        return "{}({}, {}, {})".\
-            format(type(self).__name__, self.section, self.line, self.function)
-
-
-class SystemCall(InstructionNode):
-    # InstructionNode:: Node.Section -> int -> (ProgramState -> (ProgramState, RunError)) -> InstructionNode
-    # can't add type parameters to func because of a circular import
-    def __init__(self, func: Callable[[Any], Tuple[Any, Any]], name: str):
-        super().__init__(Node.Section.TEXT, -1, func)
-        self.name = name
-
-    def __str__(self) -> str:
-        return "{}({}, internal function {})".\
-            format(type(self).__name__, self.section, self.name)
 
 
 class ErrorNode(Node):
