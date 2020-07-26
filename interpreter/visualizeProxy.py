@@ -113,6 +113,7 @@ def setLineInternalFunction(text: str):
     visualizer.instr.configure(state="disabled")
 
 
+# TODO use StatusRegister class
 # Set the colors of the statusRegister section of the visualizer to the actual contents of the statusRegister
 # setStatusRegs:: bool -> bool -> bool -> bool -> void
 def setStatusRegs(n: bool, z: bool, c: bool, v: bool):

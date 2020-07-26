@@ -344,11 +344,6 @@ def updateClock():
             clockTicked = True
 
 
-clockThread = threading.Thread(target=updateClock)
-clockThread.setDaemon(True)
-clockThread.start()
-
-
 # Configure the speed entry
 speedEntry.delete(0, END)
 speedEntry.insert(0, 5)

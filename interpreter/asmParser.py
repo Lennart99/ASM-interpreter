@@ -231,9 +231,7 @@ def parse(tokenList: List[tokens.Token], context: ProgramContext = ProgramContex
         # skip
         return parse(instructions.advanceToNewline(tokenList), context, section)
     elif isinstance(head, tokens.Skip):
-        chars = list(map(lambda c: c, head.contents))
-
-        number = reduce(lambda a, b: (a + b) if a in "0123456789" else b, chars)
+        number = head.contents[6:]
         n_skip = int(number) >> 2
         if n_skip > 0:
             def generateSkipNodes(n: int):

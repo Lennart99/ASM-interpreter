@@ -35,7 +35,8 @@ def generateStacktrace(state: programState.ProgramState, error: programState.Run
     res += generateStacktraceElement(state, programStateProxy.getReg(state, "PC"), fileName, lines) + '\n'
     if not state.hasReturned:
         res += generateStacktraceElement(state, programStateProxy.getReg(state, "LR"), fileName, lines) + '\n'
-    res += reduce(lambda a, b: a + "\n" + b, callbacks) + '\n'
+    if len(callbacks) > 0:
+        res += reduce(lambda a, b: a + "\n" + b, callbacks) + '\n'
     res += error.message + '\n'
     return res + f"\033[0m"  # Normal color
 
@@ -46,6 +47,7 @@ def runProgram(state: programState.ProgramState, fileName: str, lines: List[str]
     if isinstance(node, programState.InstructionNode):
         # Execute the instruction
         state, err = visualizeProxy.runLogger(node, lines)(state)
+
         # Exception handling
         if err is not None:
             if isinstance(err, programState.RunError):

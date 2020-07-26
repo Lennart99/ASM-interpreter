@@ -105,6 +105,7 @@ def fixMismatches(tokenList: List[tokens.Token], file_contents: str) -> List[tok
     if head.is_mismatch:
         idx: int = head.start_index
         text: str = addSubsequentTokens(tokenList)
+        # string
         if text[0] == '"':
             # String is not terminated, add " to the end of the file
             error: tokens.Token = tokens.ErrorToken(f"\033[31m"  # red color
@@ -112,6 +113,7 @@ def fixMismatches(tokenList: List[tokens.Token], file_contents: str) -> List[tok
                                                     f"\tSyntax warning: Unterminated string at end of file, '\"' inserted"
                                                     f"\033[0m", tokens.ErrorToken.ErrorType.Warning)
             file_contents = file_contents + "\""
+        # comment
         elif text[0:2] == '/*':
             # Multi-line comment is not terminated, add */ to the end of the file
             error: tokens.Token = tokens.ErrorToken(f"\033[31m"  # red color
@@ -119,6 +121,7 @@ def fixMismatches(tokenList: List[tokens.Token], file_contents: str) -> List[tok
                                                     f"\tSyntax warning: Multi-line comment opened, but not closed (*/ is missing)"
                                                     f"\033[0m", tokens.ErrorToken.ErrorType.Warning)
             file_contents = file_contents + "*/"
+        # immed char
         elif len(text) > 1 and text[0] in '#=':
             if text[1] == "'":
                 # quote
