@@ -43,29 +43,31 @@ def generateStacktrace(state: programState.ProgramState, error: programState.Run
 
 # runProgram:: ProgramState -> (ProgramState -> RunError -> String) -> ProgramState
 def runProgram(state: programState.ProgramState, fileName: str, lines: List[str]) -> programState.ProgramState:
-    node: programState.InstructionNode = programStateProxy.getInstructionFromMem(state, programStateProxy.getReg(state, "PC"))
-    if isinstance(node, programState.InstructionNode):
-        # Execute the instruction
-        state, err = visualizeProxy.runLogger(node, lines)(state)
+    while True:
+        node: programState.InstructionNode = programStateProxy.getInstructionFromMem(state, programStateProxy.getReg(state, "PC"))
+        if isinstance(node, programState.InstructionNode):
+            # Execute the instruction
+            state, err = visualizeProxy.runLogger(node, lines)(state)
 
-        # Exception handling
-        if err is not None:
-            if isinstance(err, programState.RunError):
-                if err.errorType == programState.RunError.ErrorType.Error:
-                    print(generateStacktrace(state, err, fileName, lines))
-                    return state
-                elif err.errorType == programState.RunError.ErrorType.Warning:
-                    print(generateStacktrace(state, err, fileName, lines))
-                    pass
-            if isinstance(err, programState.StopProgram):
-                return state
-        # Set a flag in the ProgramState when a subroutine returned. This way the stacktrace generator knows to not print a stacktrace element for the link register
-        pc = programStateProxy.getReg(state, "PC")
-        if pc == programStateProxy.getReg(state, "LR"):
-            state.hasReturned = True
-        # increment the program counter
-        state = programStateProxy.setReg(state, "PC", pc + 4)
-    return runProgram(state, fileName, lines)
+            # Exception handling
+            if err is not None:
+                if isinstance(err, programState.RunError):
+                    if err.errorType == programState.RunError.ErrorType.Error:
+                        print(generateStacktrace(state, err, fileName, lines))
+                        break
+                    elif err.errorType == programState.RunError.ErrorType.Warning:
+                        print(generateStacktrace(state, err, fileName, lines))
+                        pass
+                if isinstance(err, programState.StopProgram):
+                    break
+            # Set a flag in the ProgramState when a subroutine returned. This way the stacktrace generator knows to not print a stacktrace element for the link register
+            pc = programStateProxy.getReg(state, "PC")
+            if pc == programStateProxy.getReg(state, "LR"):
+                state.hasReturned = True
+            # increment the program counter
+            state = programStateProxy.setReg(state, "PC", pc + 4)
+
+    return state
 
 
 # parseAndRun:: String -> int -> String -> ProgramState
