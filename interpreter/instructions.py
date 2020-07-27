@@ -297,85 +297,98 @@ def decodeSTR(tokenList: List[tokens.Token], section: nodes.Node.Section, bitSiz
 
 # getRegisterList:: [Token] -> String -> boolean -> (Either [Token] ErrorNode, [Token]]
 # The instruction string is used to create the error messages
-def getRegisterList(tokenList: List[tokens.Token], instruction: str, isOpened: bool = False) -> Tuple[Union[List[tokens.Register], nodes.ErrorNode], List[tokens.Token]]:
+def getRegisterList(tokenList: List[tokens.Token], instruction: str) -> Tuple[Union[List[str], nodes.ErrorNode], List[tokens.Token]]:
     if len(tokenList) == 0:
         return generateToFewTokensError(-1, instruction + " instruction"), []
-    separator, *tokenList = tokenList
 
-    if isOpened:
-        if isinstance(separator, tokens.Separator) and separator.contents == ",":
-            if len(tokenList) == 0:
-                return generateToFewTokensError(separator.line, instruction + " instruction"), []
-            reg, *tokenList = tokenList
-            if isinstance(reg, tokens.Register):
-                regs, tokenList = getRegisterList(tokenList, instruction, True)
-                return [reg] + regs, tokenList
-            else:
-                return generateUnexpectedTokenError(reg.line, reg.contents, "a register"), advanceToNewline(tokenList)
-        elif isinstance(separator, tokens.Separator) and separator.contents == "}":
-            return [], tokenList
+    regs = []
+
+    nextToken, *tokenList = tokenList
+    if isinstance(nextToken, tokens.Separator) and nextToken.contents == "{":
+        if len(tokenList) == 0:
+            return generateToFewTokensError(nextToken.line, instruction + " instruction"), advanceToNewline(tokenList)
+        nextToken, *tokenList = tokenList
+        if isinstance(nextToken, tokens.Register):
+            regs.append(nextToken.contents)
         else:
-            return generateUnexpectedTokenError(separator.line, separator.contents, "',' or '}'"), advanceToNewline(tokenList)
+            return generateUnexpectedTokenError(nextToken.line, nextToken.contents, "a register"), advanceToNewline(tokenList)
     else:
-        if isinstance(separator, tokens.Separator) and separator.contents == "{":
+        return generateUnexpectedTokenError(nextToken.line, nextToken.contents, "'{'"), advanceToNewline(tokenList)
+    # add remaining registers
+    while True:
+        nextToken, *tokenList = tokenList
+        if isinstance(nextToken, tokens.Separator) and nextToken.contents == ",":
             if len(tokenList) == 0:
-                return generateToFewTokensError(separator.line, instruction + " instruction"), advanceToNewline(tokenList)
-            reg, *tokenList = tokenList
-            if isinstance(reg, tokens.Register):
-                regs, tokenList = getRegisterList(tokenList, instruction, True)
-                return [reg] + regs, tokenList
+                return generateToFewTokensError(nextToken.line, instruction + " instruction"), []
+            nextToken, *tokenList = tokenList
+            if isinstance(nextToken, tokens.Register):
+                regs.append(nextToken.contents)
             else:
-                return generateUnexpectedTokenError(reg.line, reg.contents, "a register"), advanceToNewline(tokenList)
+                return generateUnexpectedTokenError(nextToken.line, nextToken.contents, "a register"), advanceToNewline(tokenList)
+        elif isinstance(nextToken, tokens.Separator) and nextToken.contents == "}":
+            break
         else:
-            return generateUnexpectedTokenError(separator.line, separator.contents, "'{'"), advanceToNewline(tokenList)
+            return generateUnexpectedTokenError(nextToken.line, nextToken.contents, "',' or '}'"), advanceToNewline(tokenList)
+
+    return sorted(list(set(regs))), tokenList
 
 
 # decodePUSH:: [Token] -> Node.Section -> (Node, [Token])
 # decode the PUSH instruction
 def decodePUSH(tokenList: List[tokens.Token], section: nodes.Node.Section) -> Tuple[nodes.Node, List[tokens.Token]]:
+    line = tokenList[0].line
+
     regs, tokenList = getRegisterList(tokenList, "PUSH")
 
     if isinstance(regs, nodes.ErrorNode):
         return regs, tokenList
 
-    def push(state: programState.ProgramState, registers: List[tokens.Token]) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
-        if len(registers) == 0:
+    def push(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
+        if len(regs) == 0:
             return state, None
-        head, *tail = registers
+        # head, *tail = registers
 
-        address = programStateProxy.getReg(state, "SP") - 4
+        address = programStateProxy.getReg(state, "SP")
         # check address is in 0...stacksize
-        if address > (programStateProxy.getLabelAddress(state, "__STACKSIZE")-4) or address < 0:
+        if address > (programStateProxy.getLabelAddress(state, "__STACKSIZE")) or address < 0:
             return state, programState.RunError("Stack overflow", programState.RunError.ErrorType.Error)
-        state = programStateProxy.storeRegister(state, address, head.contents, 32)
-        state = programStateProxy.setReg(state, "SP", address)
-        return push(state, tail)
 
-    return programState.InstructionNode(section, regs[0].line, lambda x: push(x, regs)), tokenList
+        for reg in regs:
+            address -= 4
+            state = programStateProxy.storeRegister(state, address, reg, 32)
+        state = programStateProxy.setReg(state, "SP", address)
+        return state, None
+
+    return programState.InstructionNode(section, line, push), tokenList
 
 
 # decodePOP:: [Token] -> Node.Section -> (Node, [Token])
 # decode the POP instruction
 def decodePOP(tokenList: List[tokens.Token], section: nodes.Node.Section) -> Tuple[nodes.Node, List[tokens.Token]]:
+    line = tokenList[0].line
+
     regs, tokenList = getRegisterList(tokenList, "POP")
 
     if isinstance(regs, nodes.ErrorNode):
         return regs, tokenList
+    regs = list(reversed(regs))
 
-    def pop(state: programState.ProgramState, registers: List[tokens.Token]) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
-        if len(registers) == 0:
+    def pop(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
+        if len(regs) == 0:
             return state, None
-        head, *tail = registers
+        # head, *tail = registers
 
         address = programStateProxy.getReg(state, "SP")
         # check address is in 0...stacksize
-        if address > (programStateProxy.getLabelAddress(state, "__STACKSIZE")-4) or address < 0:
+        if address > (programStateProxy.getLabelAddress(state, "__STACKSIZE")) or address < 0:
             return state, programState.RunError("All stack entries have been pop'ed already", programState.RunError.ErrorType.Error)
-        state = programStateProxy.loadRegister(state, address, 32, head.contents)
-        state = programStateProxy.setReg(state, "SP", address + 4)
-        return pop(state, tail)
+        for reg in regs:
+            state = programStateProxy.loadRegister(state, address, 32, reg)
+            address += 4
+        state = programStateProxy.setReg(state, "SP", address)
+        return state, None
 
-    return programState.InstructionNode(section, regs[0].line, lambda x: pop(x, list(reversed(regs)))), tokenList
+    return programState.InstructionNode(section, line, pop), tokenList
 
 
 # decodeALUInstruction:: [Token] -> Section ->
