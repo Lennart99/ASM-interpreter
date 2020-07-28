@@ -125,13 +125,25 @@ def getLabelAddress(state: ProgramState, label: str) -> Union[int, RunError]:
     return state.labels[label].address
 
 
-# printAndReturn:: ProgramState -> (ProgramState, Either RunError or None)
+# subroutine_print_char:: ProgramState -> ProgramState, Either RunError or None
 # Implementation of the 'print_char' subroutine
 # Note: prints a char to the default output
 def subroutine_print_char(state: ProgramState) -> Tuple[ProgramState, Union[RunError, None]]:
     # print char
     r0 = getReg(state, "R0")
     print(chr(r0), end='')
+    # mov PC, LR
+    lr = getReg(state, "LR")
+    return setReg(state, "PC", lr), None
+
+
+# subroutine_print_int:: ProgramState -> ProgramState, Either RunError or None
+# Implementation of the 'print_int' subroutine
+# Note: prints an integer to the default output and adds a newline
+def subroutine_print_int(state: ProgramState) -> Tuple[ProgramState, Union[RunError, None]]:
+    # print char
+    r0 = getReg(state, "R0")
+    print(r0, end='\n')
     # mov PC, LR
     lr = getReg(state, "LR")
     return setReg(state, "PC", lr), None
@@ -174,17 +186,21 @@ def convertLabelsToDict(labelList: List[nodes.Label], stackSize: int, textSize: 
 # generateProgramState:: ProgramContext -> int -> String -> String -> ProgramState
 # Generate a ProgramState based on a ProgramContext
 def generateProgramState(context: programContext.ProgramContext, stackSize: int, startLabel: str, fileName: str, useGUI: bool) -> ProgramState:
-    text = context.text + [SystemCall(subroutine_print_char, "print_char"),
-                           # Subroutine to start the program and stop it afterwards
-                           SystemCall(lambda s: branchToLabel(s, startLabel), "__STARTUP"),
-                           SystemCall(lambda s: (s, StopProgram()), "__STARTUP")
-                           ]
+    text: List[nodes.Node] = context.text + [SystemCall(subroutine_print_char, "print_char"),
+                                             SystemCall(subroutine_print_int, "print_int"),
+                                             # Subroutine to start the program and stop it afterwards
+                                             SystemCall(lambda s: branchToLabel(s, startLabel), "__STARTUP"),
+                                             SystemCall(lambda s: (s, StopProgram()), "__STARTUP")
+                                             ]
 
     mem: List[nodes.Node] = [nodes.DataNode(0, "SETUP") for _ in range(stackSize >> 2)] + text + context.bss + context.data
     regs = [0 for _ in range(16)]
     regs[regToID("SP")] = stackSize
     status = StatusRegister(False, False, False, False)
-    labelList = context.labels + [nodes.Label("print_char", nodes.Node.Section.TEXT, len(context.text)), nodes.Label("__STACKSIZE", nodes.Node.Section.TEXT, 0)]
+    labelList = context.labels + [nodes.Label("print_char", nodes.Node.Section.TEXT, len(context.text)),
+                                  nodes.Label("print_int", nodes.Node.Section.TEXT, len(context.text)+4),
+                                  nodes.Label("__STACKSIZE", nodes.Node.Section.TEXT, 0)
+                                  ]
 
     labels = convertLabelsToDict(labelList, stackSize, len(text), len(context.bss))
 
