@@ -2,7 +2,7 @@ import tkinter
 from tkinter import END, WORD
 
 from functools import reduce
-from typing import List, Callable
+from typing import List, Callable, Tuple
 import threading
 import time
 import builtins
@@ -15,8 +15,8 @@ import nodes
 # Daarom hebben we afgesproken dat dit niet volledig functioneel hoeft
 
 # Flags
-clockTicked: bool = False
-clockSpeed: int = 5
+# clockTicked: bool = False
+# clockSpeed: int = 5
 closed = False
 memoryCommand: Callable[[programState.ProgramState], programState.ProgramState] = None
 
@@ -59,7 +59,8 @@ def validateNumber(text: str) -> int:
 # Handles the button to write data to memory
 def write():
     global memoryCommand
-    if clockSetting.get() == "manual":
+    # if clockSetting.get() == "manual":
+    if False:
         addr = validateNumber(addressEntry.get())
         contents = validateNumber(memContents.get())
         if addr == -1:
@@ -91,7 +92,8 @@ def write():
 # Handles the button to read data from memory
 def read():
     global memoryCommand
-    if clockSetting.get() == "manual":
+    # if clockSetting.get() == "manual":
+    if False:
         addr = validateNumber(addressEntry.get())
         if addr == -1:
             return
@@ -126,53 +128,6 @@ def read():
               "\033[0m")
 
 
-# Handles the button to step to next instruction
-def nextStep():
-    global clockTicked
-    clockTicked = True
-
-
-# Called when the clock mode is changed
-def onClockModeChange():
-    global memoryCommand
-    if clockSetting.get() == "manual":
-        nextButton.configure(state="normal")
-        readButton.configure(state="normal")
-        writeButton.configure(state="normal")
-    else:
-        memoryCommand = None
-        nextButton.configure(state="disabled")
-        readButton.configure(state="disabled")
-        writeButton.configure(state="disabled")
-
-
-# Validate the text is a number and not negative, returns True if the text was a valid number
-# this function updates the clocksSpeed automatically
-# checkClockSpeed:: String -> bool
-def checkClockSpeed(text: str) -> bool:
-    global clockSpeed
-    if len(text) == 0:
-        print("\033[31m"
-              "Integer should not be empty"
-              "\033[0m")
-        return False
-    if not text.isdigit():
-        print(f"\033[31m"
-              f"This is not a valid integer: {text}"
-              f"\033[0m")
-        return False
-    if int(text, 0) == 0:
-        print("\033[31m"
-              "Integer should not be zero"
-              "\033[0m")
-        return False
-    clockSpeed = int(text, 0)
-    return True
-
-
-# generate the tkinter command
-clockCommand = window.register(checkClockSpeed)
-
 # registers
 tkinter.Label(window, text="Registers:", fg="#000000", font="none 12").place(x=0, y=0)
 
@@ -191,31 +146,12 @@ class RegisterEntry:
         tkinter.Label(window, text=name, fg="#000000", font="none 12").place(x=75 * column, y=30 + (60 * line))
         self.entry = tkinter.Text(window, height=1, width=10, bg="#DDDDDD", fg="#000000", font="none 10", state='disabled')
         self.entry.place(x=75 * column, y=60 + (60 * line))
-        self.read = False
-        self.write = False
 
     def setValue(self, val: int):
         self.entry.configure(state="normal")
         self.entry.delete(0.0, END)
         self.entry.insert(END, val)
-        if self.read:
-            self.entry.configure(fg="#0000FF")
-        else:
-            self.entry.configure(fg="#FF0000")
-        self.write = True
         self.entry.configure(state="disabled")
-
-    def processRead(self):
-        self.read = True
-        if self.write:
-            self.entry.configure(fg="#0000FF")
-        else:
-            self.entry.configure(fg="#00FF00")
-
-    def reset(self):
-        self.entry.configure(fg="#000000")
-        self.read = False
-        self.write = False
 
     def __str__(self):
         return f"RegisterEntry({self.name})"
@@ -252,24 +188,6 @@ C.place(x=(75 * 9)+80, y=30)
 V = tkinter.Label(window, text="V", fg="#FF0000", font="none 14")
 V.place(x=(75 * 9)+120, y=30)
 
-# Clock
-tkinter.Label(window, text="Clock:", fg="#000000", font="none 14").place(x=75 * 8, y=60)
-nextButton = tkinter.Button(window, text="NEXT", width=5, command=nextStep)
-nextButton.place(x=75 * 8, y=90)
-
-# Clock mode switch
-clockSettingFrame = tkinter.Frame(window)
-clockSetting = tkinter.StringVar(value="manual")
-tkinter.Radiobutton(clockSettingFrame, text="manual", variable=clockSetting, indicatoron=False, value="manual", width=8, command=onClockModeChange).pack(side="left")
-tkinter.Radiobutton(clockSettingFrame, text="auto", variable=clockSetting, indicatoron=False, value="auto", width=8, command=onClockModeChange).pack(side="left")
-clockSettingFrame.place(x=75 * 9, y=90)
-
-# Clock speed setting
-tkinter.Label(window, text="Speed: ", fg="#000000", font="none 14").place(x=75 * 8, y=120)
-speedEntry = tkinter.Entry(window, width=3, bg="#DDDDDD", font="none 10", validate='focusout', validatecommand=(clockCommand, '%P'))
-speedEntry.place(x=75 * 9, y=125)
-tkinter.Label(window, text="Instr/sec", fg="#000000", font="none 14").place(x=700, y=120)
-
 # Instructions
 tkinter.Label(window, text="Instructions:", fg="#000000", font="none 14").place(x=75 * 8, y=155)
 
@@ -295,9 +213,9 @@ memContents = tkinter.Entry(window, width=10, bg="#DDDDDD")
 memContents.place(x=75 * 8, y=330)
 
 # Console
-consoleText = ''
 console = tkinter.Text(window, width=70, height=16, wrap=WORD, bg="#2B2B2B", fg="#DDDDDD", state='disabled')
 console.place(x=0, y=155)
+addText = ''
 # save the old print function to print to the console
 __old_print = builtins.print
 
@@ -305,6 +223,8 @@ __old_print = builtins.print
 # Overrides the print function to forward all output to the visualizer
 # printLine:: [any] -> String -> String -> Stream -> void
 def printLine(*args, sep=' ', end='\n', file=None):
+    global addText
+
     def stripColor(text: str) -> str:
         if "\033[" in text:
             idx = text.index("\033[")
@@ -316,42 +236,69 @@ def printLine(*args, sep=' ', end='\n', file=None):
         else:
             return text
 
+    __old_print(*args, sep=sep, end=end, file=file)
+
     if end is None:
         end = '\n'
 
-    global consoleText
-    __old_print(*args, sep=sep, end=end, file=file)
+    if len(args) > 0:
+        addText += str(args[0])
+        for arg in args[1:]:
+            addText += str(sep) + str(arg)
+    addText += str(end)
 
-    if len(args) == 0:
-        consoleText += str(end)
+    # Flush when \n is sent
+    if '\n' in addText:
+        console.configure(state="normal")
+        console.insert(END, addText)
+        console.configure(state="disabled")
+
+        addText = ''
+
+
+# Initialize the registers in the visualizer with there actual values
+def setRegs(registers: List[int]):
+    for register, value in zip(reg_items, registers):
+        register.setValue(value)
+
+
+# Set the colors of the statusRegister section of the visualizer to the actual contents of the statusRegister
+# setStatusRegs:: bool -> bool -> bool -> bool -> void
+def setStatusRegs(status: programState.StatusRegister):
+    if status.N:
+        N.configure(fg="#00FF00")
     else:
-        consoleText += stripColor(reduce(lambda text, add: str(text) + str(sep) + str(add), list(args)) + str(end))
+        N.configure(fg="#FF0000")
 
-    console.configure(state="normal")
-    console.delete(0.0, END)
-    console.insert(END, consoleText)
-    console.configure(state="disabled")
+    if status.Z:
+        Z.configure(fg="#00FF00")
+    else:
+        Z.configure(fg="#FF0000")
+
+    if status.C:
+        C.configure(fg="#00FF00")
+    else:
+        C.configure(fg="#FF0000")
+
+    if status.V:
+        V.configure(fg="#00FF00")
+    else:
+        V.configure(fg="#FF0000")
 
 
-# function to tick the clock periodically when the clock mode is set to auto
-def updateClock():
-    global clockTicked
-    while True:
-        if clockSetting.get() == "auto":
-            # It isn't really possible to sleep for less then 2 ms
-            if clockSpeed < 500:
-                time.sleep(1.0/clockSpeed)
-            clockTicked = True
+# Update the current instruction and its location in the visualizer
+# setLine:: String -> int -> void
+def setLine(line: int, text: str):
+    currentLine.configure(text=f"Line {line}:")
+    instr.configure(state="normal")
+    instr.delete(0.0, END)
+    instr.insert(END, text)
+    instr.configure(state="disabled")
 
-
-# Configure the speed entry
-speedEntry.delete(0, END)
-speedEntry.insert(0, 5)
 
 # Test code
 if __name__ == "__main__":
     reg_items[0].setValue(1_000_000_000)
-    reg_items[0].reset()
 
     N.configure(fg="#00FF00")
 

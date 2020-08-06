@@ -127,9 +127,9 @@ def decodeGlobal(tokenList: List[tokens.Token]) -> Tuple[Union[List[str], nodes.
 
 
 # parse:: [Token] -> ProgramContext -> Node.Section -> ProgramContext
-def parse(tokenList: List[tokens.Token], context: ProgramContext = None, section: nodes.Node.Section = nodes.Node.Section.TEXT) -> ProgramContext:
-    if context is None:
-        context = ProgramContext([], [], [], [], [])
+def parse(tokenList: List[tokens.Token]) -> ProgramContext:
+    context = ProgramContext([], [], [], [], [])
+    section: nodes.Node.Section = nodes.Node.Section.TEXT
 
     while len(tokenList) > 0:
         head, *tokenList = tokenList

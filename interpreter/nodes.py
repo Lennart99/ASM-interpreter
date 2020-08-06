@@ -32,6 +32,28 @@ class DataNode(Node):
             format(type(self).__name__, hex(self.value))
 
 
+class InstructionNode(Node):
+    # InstructionNode:: Node.Section -> int -> (ProgramState -> (ProgramState, RunError)) -> InstructionNode
+    def __init__(self, section: Node.Section, line: int, func):
+        super().__init__(section, line)
+        self.function = func  # Callable[[programState.ProgramState], Tuple[programState.ProgramState, programState.RunError]]
+
+    def __str__(self) -> str:
+        return "{}({}, {}, {})".\
+            format(type(self).__name__, self.section, self.line, self.function)
+
+
+class SystemCall(InstructionNode):
+    # InstructionNode:: Node.Section -> int -> (ProgramState -> (ProgramState, RunError)) -> SystemCall
+    def __init__(self, func, name: str):
+        super().__init__(Node.Section.TEXT, -1, func)
+        self.name = name
+
+    def __str__(self) -> str:
+        return "{}({}, internal function {})".\
+            format(type(self).__name__, self.section, self.name)
+
+
 class ErrorNode(Node):
     def __init__(self, message: str):
         super().__init__(Node.Section.TEXT, -1)

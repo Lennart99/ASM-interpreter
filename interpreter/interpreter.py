@@ -1,21 +1,21 @@
 from typing import List
 from functools import reduce
+import builtins
 
 import nodes
+import programContext
 import programState
-import programStateProxy
 import asmParser
 import lexer
 import tokens
 import visualizer
-import visualizeProxy
 
 
 # generateStacktraceElement:: ProgramState -> int -> String -> [String] -> String
 # Generates a stacktrace element from an instruction address
 def generateStacktraceElement(state: programState.ProgramState, address: int, fileName: str, lines: List[str]) -> str:
-    instr: programState.InstructionNode = programStateProxy.getInstructionFromMem(state, address)
-    if isinstance(instr, programState.SystemCall):
+    instr: nodes.InstructionNode = state.getInstructionFromMem(address)
+    if isinstance(instr, nodes.SystemCall):
         return f"\tInternal function: {instr.name}"
     return f"\tFile \"{fileName}\", line {instr.line}:\n\t\t{lines[instr.line-1].strip()}"
 
@@ -24,17 +24,17 @@ def generateStacktraceElement(state: programState.ProgramState, address: int, fi
 # Generates the stacktrace of an error
 def generateStacktrace(state: programState.ProgramState, error: programState.RunError, fileName: str, lines: List[str]) -> str:
     # Get return addresses from the stack
-    sp: int = programStateProxy.getReg(state, "SP")
-    stackSize = programStateProxy.getLabelAddress(state, "__STACKSIZE")
+    sp: int = state.getReg("SP")
+    stackSize = state.getLabelAddress("__STACKSIZE")
     stack: List[nodes.Node] = state.memory[sp >> 2:stackSize >> 2]
-    callbacks = list(map(lambda n: generateStacktraceElement(state, n.value, fileName, lines), filter(lambda x: isinstance(x, nodes.DataNode) and x.source == "LR", stack) ) )
+    callbacks = list(map(lambda n: generateStacktraceElement(state, n.value, fileName, lines), filter(lambda x: isinstance(x, nodes.DataNode) and x.source == "LR", stack)))
 
     # Generate the error
     res = f"\033[31m"  # Red color
     res += "Traceback (most recent call first):\n"
-    res += generateStacktraceElement(state, programStateProxy.getReg(state, "PC"), fileName, lines) + '\n'
+    res += generateStacktraceElement(state, state.getReg("PC"), fileName, lines) + '\n'
     if not state.hasReturned:
-        res += generateStacktraceElement(state, programStateProxy.getReg(state, "LR"), fileName, lines) + '\n'
+        res += generateStacktraceElement(state, state.getReg("LR"), fileName, lines) + '\n'
     if len(callbacks) > 0:
         res += reduce(lambda a, b: a + "\n" + b, callbacks) + '\n'
     res += error.message + '\n'
@@ -44,10 +44,18 @@ def generateStacktrace(state: programState.ProgramState, error: programState.Run
 # runProgram:: ProgramState -> (ProgramState -> RunError -> String) -> ProgramState
 def runProgram(state: programState.ProgramState, fileName: str, lines: List[str]) -> programState.ProgramState:
     while True:
-        node: programState.InstructionNode = programStateProxy.getInstructionFromMem(state, programStateProxy.getReg(state, "PC"))
-        if isinstance(node, programState.InstructionNode):
+        node: nodes.InstructionNode = state.getInstructionFromMem(state.getReg("PC"))
+        if isinstance(node, nodes.InstructionNode):
             # Execute the instruction
-            state, err = visualizeProxy.runLogger(node, lines)(state)
+            if state.visualizer:
+                # TODO check breakpoints
+                # TODO update regs when at breakpoint
+                # visualizer.setStatusRegs(state.status)
+                # visualizer.setRegs(state.registers)
+                if not isinstance(node, nodes.SystemCall):
+                    # TODO mark line (when at breakpoint?)
+                    pass
+            state, err = node.function(state)
 
             # Exception handling
             if err is not None:
@@ -58,14 +66,17 @@ def runProgram(state: programState.ProgramState, fileName: str, lines: List[str]
                     elif err.errorType == programState.RunError.ErrorType.Warning:
                         print(generateStacktrace(state, err, fileName, lines))
                         pass
-                if isinstance(err, programState.StopProgram):
-                    break
+                    elif isinstance(err, programState.StopProgram):
+                        break
             # Set a flag in the ProgramState when a subroutine returned. This way the stacktrace generator knows to not print a stacktrace element for the link register
-            pc = programStateProxy.getReg(state, "PC")
-            if pc == programStateProxy.getReg(state, "LR"):
+            pc = state.getReg("PC")
+            if pc == state.getReg("LR"):
                 state.hasReturned = True
             # increment the program counter
-            state = programStateProxy.setReg(state, "PC", pc + 4)
+            state.setReg("PC", pc + 4)
+        else:
+            # TODO err
+            break
 
     return state
 
@@ -89,15 +100,20 @@ def parseAndRun(fileName: str, stackSize: int, startLabel: str, useGUI: bool) ->
     if errCount > 0:
         exit(-1)
 
-    state = programStateProxy.generateProgramState(context, stackSize, startLabel, fileName, useGUI)
+    state = programContext.generateProgramState(context, stackSize, startLabel, fileName, useGUI)
 
     if useGUI:
-        visualizeProxy.initRegs(state.registers)
+        visualizer.setRegs(state.registers)
+        # overwrite print function
+        builtins.print = visualizer.printLine
 
     res = runProgram(state, fileName, lines)
+
     if useGUI:
+        visualizer.setStatusRegs(res.status)
+        visualizer.setRegs(res.registers)
+
         # Disable the GUI when the program is finished
-        visualizer.nextButton.configure(state="disabled")
         visualizer.readButton.configure(state="disabled")
         visualizer.writeButton.configure(state="disabled")
 

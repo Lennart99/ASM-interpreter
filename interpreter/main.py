@@ -13,10 +13,6 @@ t.setDaemon(True)
 t.start()
 
 if useGUI:
-    clockThread = threading.Thread(target=visualizer.updateClock)
-    clockThread.setDaemon(True)
-    clockThread.start()
-
     visualizer.window.mainloop()
 
 t.join()
