@@ -3,7 +3,7 @@ from functools import reduce
 import interpreter
 
 fileName = "decompress.asm"
-useGUI = False
+useGUI = True
 stackSize = 1024
 startLabel = "_start"
 

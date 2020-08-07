@@ -250,18 +250,23 @@ class MainWindow(wx.Frame):
 
         toolbar.AddSeparator()
 
-        runTool: wx.ToolBarToolBase = toolbar.AddTool(wx.ID_ANY, "Run", self.icons.run, "Run the program")
-        self.Bind(wx.EVT_TOOL, self.OnRun, runTool)
-        debugTool: wx.ToolBarToolBase = toolbar.AddTool(wx.ID_ANY, "Debug",  self.icons.debug, "Debug the program")
-        self.Bind(wx.EVT_TOOL, lambda _: print("debug"), debugTool)
-        stopTool: wx.ToolBarToolBase = toolbar.AddTool(wx.ID_ANY, "Stop",  self.icons.stop, "Stop the program")
-        self.Bind(wx.EVT_TOOL, self.OnStop, stopTool)
-        singleStepTool: wx.ToolBarToolBase = toolbar.AddTool(wx.ID_ANY, "Single-step",  self.icons.singleStep, "Single-step the program")
-        self.Bind(wx.EVT_TOOL, lambda _: print("single-step"), singleStepTool)
-        resumeBreakpointTool: wx.ToolBarToolBase = toolbar.AddTool(wx.ID_ANY, "Resume-to-breakpoint", self.icons.resumeToBreakpoint, "Resume to the next breakpoint")
-        self.Bind(wx.EVT_TOOL, lambda _: print("resume to next breakpoint"), resumeBreakpointTool)
-        resumeTool: wx.ToolBarToolBase = toolbar.AddTool(wx.ID_ANY, "Resume",  self.icons.resume, "Run the rest of the program")
-        self.Bind(wx.EVT_TOOL, lambda _: print("Run rest of program"), resumeTool)
+        self.runTool: wx.ToolBarToolBase = toolbar.AddTool(wx.ID_ANY, "Run", self.icons.run, "Run the program")
+        self.Bind(wx.EVT_TOOL, self.OnRun, self.runTool)
+        self.debugTool: wx.ToolBarToolBase = toolbar.AddTool(wx.ID_ANY, "Debug",  self.icons.debug, "Debug the program")
+        self.Bind(wx.EVT_TOOL, lambda _: print("debug"), self.debugTool)
+        self.stopTool: wx.ToolBarToolBase = toolbar.AddTool(wx.ID_ANY, "Stop",  self.icons.stop, "Stop the program")
+        self.Bind(wx.EVT_TOOL, self.OnStop, self.stopTool)
+        self.singleStepTool: wx.ToolBarToolBase = toolbar.AddTool(wx.ID_ANY, "Single-step",  self.icons.singleStep, "Single-step the program")
+        self.Bind(wx.EVT_TOOL, lambda _: print("single-step"), self.singleStepTool)
+        self.resumeBreakpointTool: wx.ToolBarToolBase = toolbar.AddTool(wx.ID_ANY, "Resume-to-breakpoint", self.icons.resumeToBreakpoint, "Resume to the next breakpoint")
+        self.Bind(wx.EVT_TOOL, lambda _: print("resume to next breakpoint"), self.resumeBreakpointTool)
+        self.resumeTool: wx.ToolBarToolBase = toolbar.AddTool(wx.ID_ANY, "Resume",  self.icons.resume, "Run the rest of the program")
+        self.Bind(wx.EVT_TOOL, lambda _: print("Run rest of program"), self.resumeTool)
+
+        self.stopTool.Enable(False)
+        self.singleStepTool.Enable(False)
+        self.resumeBreakpointTool.Enable(False)
+        self.resumeTool.Enable(False)
 
         toolbar.AddSeparator()
 
@@ -311,7 +316,7 @@ class MainWindow(wx.Frame):
         except:
             try:
                 # If regular save fails, try the Save As method.
-                dlg = wx.FileDialog(self, "Save file as", self.dirName, "Untitled", "*.*", wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
+                dlg = wx.FileDialog(self, "Save file", self.dirName, "Untitled", "*.*", wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
                 if dlg.ShowModal() == wx.ID_OK:
                     self.fileName = dlg.GetFilename()
                     self.dirName = dlg.GetDirectory()
@@ -351,6 +356,18 @@ class MainWindow(wx.Frame):
 
             self.runThread = None
             self.stopFlag = False
+
+            self.runTool.Enable(True)
+            self.debugTool.Enable(True)
+            self.stopTool.Enable(False)
+            self.GetToolBar().Realize()
+
+        self.console.clear()
+
+        self.runTool.Enable(False)
+        self.debugTool.Enable(False)
+        self.stopTool.Enable(True)
+        self.GetToolBar().Realize()
 
         self.runThread = threading.Thread(target=run)
         self.runThread.setDaemon(True)
@@ -398,7 +415,7 @@ def printLine(*args, sep=' ', end='\n', file=None):
 
     # Flush when \n is sent
     if '\n' in addText:
-        frame.console.append(addText)
+        frame.console.append(stripColor(addText))
 
         addText = ''
 
