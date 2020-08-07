@@ -6,7 +6,6 @@ from typing import Union, List, Optional
 import builtins
 import os
 import threading
-import time
 import random
 
 import programState
@@ -183,11 +182,11 @@ class SidePanel(wx.Panel):
         self.SetBackgroundColour("#FFFFFF")
 
         # TODO add regs
-        regLabel = wx.StaticText(self, -1, "Registers:", pos=(10, 10))
+        wx.StaticText(self, -1, "Registers:", pos=(10, 10))
         regs = ["R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9", "R10", "R11", "R12", "SP", "LR", "PC"]
         self.regEntries = [RegisterEntry(self, reg, 30+30*idx) for idx, reg in enumerate(regs)]
 
-        statusRegLabel = wx.StaticText(self, -1, "Status Registers:", pos=(10, 530))
+        wx.StaticText(self, -1, "Status Registers:", pos=(10, 530))
         self.statusRegEntries = [RegisterEntry(self, reg, 550+30*idx) for idx, reg in enumerate(["N", "Z", "C", "V"])]
 
         for reg in self.statusRegEntries:
@@ -230,7 +229,7 @@ class MainWindow(wx.Frame):
         self.textPanel = right.textPanel
         self.console = right.console
 
-        self.dirName = ''
+        self.dirName = os.path.dirname(__file__)
         self.fileName = ''
 
         # Toolbar
@@ -281,71 +280,60 @@ class MainWindow(wx.Frame):
         self.Show()
 
     # New document menu action
-    def OnNew(self, e):
+    def OnNew(self, _):
         # Empty the instance variable for current filename, and the main text box's content
         self.fileName = ""
         self.textPanel.textBox.SetValue("")
         self.console.clear()
 
     # Open existing document menu action
-    def OnOpen(self, e):
+    def OnOpen(self, _):
         # First try opening the existing file; if it fails, the file doesn't exist most likely
-        try:
-            dlg = wx.FileDialog(self, "Choose a file to open", self.dirName, "", "*.*", wx.FD_OPEN)
+        dlg = wx.FileDialog(self, "Choose a file to open", self.dirName, "", "*.*", wx.FD_OPEN)
+        if dlg.ShowModal() == wx.ID_OK:
+            self.fileName = dlg.GetFilename()
+            self.dirName = dlg.GetDirectory()
+            path = os.path.join(self.dirName, self.fileName)
+            if os.path.exists(path):
+                with open(path, 'r') as f:
+                    self.textPanel.textBox.SetValue(f.read())
+                self.console.clear()
+            else:
+                dlg = wx.MessageDialog(self, " Couldn't open file", "Error 009", wx.ICON_ERROR)
+                dlg.ShowModal()
+        dlg.Destroy()
+
+    # Save the document menu action
+    def OnSave(self, _):
+        # First try just saving the existing file, but if that file doesn't
+        # exist it will fail, and the except will launch the Save As.
+        if self.fileName == "":
+            # If regular save fails, try the Save As method.
+            dlg = wx.FileDialog(self, "Save file", self.dirName, "Untitled", "*.*", wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
             if dlg.ShowModal() == wx.ID_OK:
                 self.fileName = dlg.GetFilename()
                 self.dirName = dlg.GetDirectory()
-                f = open(os.path.join(self.dirName, self.fileName), 'r')
-                self.textPanel.textBox.SetValue(f.read())
-                self.console.clear()
-                f.close()
+                path = os.path.join(self.dirName, self.fileName)
+                with open(path, 'w') as f:
+                    f.write(self.textPanel.textBox.GetValue())
             dlg.Destroy()
-        except:
-            dlg = wx.MessageDialog(self, " Couldn't open file", "Error 009", wx.ICON_ERROR)
-            dlg.ShowModal()
-            dlg.Destroy()
-
-    # Save the document menu action
-    def OnSave(self, e):
-        # First try just saving the existing file, but if that file doesn't
-        # exist it will fail, and the except will launch the Save As.
-        try:
+        else:
             f = open(os.path.join(self.dirName, self.fileName), 'w')
             f.write(self.textPanel.textBox.GetValue())
             f.close()
-        except:
-            try:
-                # If regular save fails, try the Save As method.
-                dlg = wx.FileDialog(self, "Save file", self.dirName, "Untitled", "*.*", wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
-                if dlg.ShowModal() == wx.ID_OK:
-                    self.fileName = dlg.GetFilename()
-                    self.dirName = dlg.GetDirectory()
-                    f = open(os.path.join(self.dirName, self.fileName), 'w')
-                    f.write(self.textPanel.textBox.GetValue())
-                    f.close()
-                dlg.Destroy()
-            except:
-                dlg = wx.MessageDialog(self, " Couldn't save file", "Error 009", wx.ICON_ERROR)
-                dlg.ShowModal()
-                dlg.Destroy()
 
     # Save a new document menu action
-    def OnSaveAs(self, e):
-        try:
-            dlg = wx.FileDialog(self, "Save file as", self.dirName, self.fileName, "*.*", wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
-            if dlg.ShowModal() == wx.ID_OK:
-                self.fileName = dlg.GetFilename()
-                self.dirName = dlg.GetDirectory()
-                f = open(os.path.join(self.dirName, self.fileName), 'w')
+    def OnSaveAs(self, _):
+        dlg = wx.FileDialog(self, "Save file as", self.dirName, self.fileName, "*.*", wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
+        if dlg.ShowModal() == wx.ID_OK:
+            self.fileName = dlg.GetFilename()
+            self.dirName = dlg.GetDirectory()
+            path = os.path.join(self.dirName, self.fileName)
+            with open(path, 'w') as f:
                 f.write(self.textPanel.textBox.GetValue())
-                f.close()
-            dlg.Destroy()
-        except:
-            dlg = wx.MessageDialog(self, " Couldn't save file", "Error 009", wx.ICON_ERROR)
-            dlg.ShowModal()
-            dlg.Destroy()
+        dlg.Destroy()
 
-    def OnRun(self, e):
+    def OnRun(self, _):
         def run():
             file_contents: str = self.textPanel.textBox.GetValue()
             state = interpreter.parse(self.fileName, file_contents, 1024, "_start")  # TODO get stackSize and start label from main
@@ -373,7 +361,7 @@ class MainWindow(wx.Frame):
         self.runThread.setDaemon(True)
         self.runThread.start()
 
-    def OnStop(self, e):
+    def OnStop(self, _):
         if self.runThread is not None:
             self.stopFlag = True
 
