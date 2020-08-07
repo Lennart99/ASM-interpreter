@@ -1,6 +1,5 @@
-from typing import List
+from typing import List, Callable
 from functools import reduce
-import builtins
 
 import nodes
 import programContext
@@ -8,7 +7,6 @@ import programState
 import asmParser
 import lexer
 import tokens
-import visualizer
 
 
 # generateStacktraceElement:: ProgramState -> int -> String -> [String] -> String
@@ -41,20 +39,17 @@ def generateStacktrace(state: programState.ProgramState, error: programState.Run
     return res + f"\033[0m"  # Normal color
 
 
-# runProgram:: ProgramState -> (ProgramState -> RunError -> String) -> ProgramState
-def runProgram(state: programState.ProgramState, fileName: str, lines: List[str]) -> programState.ProgramState:
+# runProgram:: ProgramState -> String -> String -> (InstructionNode -> bool) -> ProgramState
+# The hook must return True when the program must be interrupted before the instruction is executed
+def runProgram(state: programState.ProgramState, fileName: str, file_contents: str, hook: Callable[[nodes.InstructionNode], bool]) -> programState.ProgramState:
+    lines = file_contents.split('\n')
+
     while True:
         node: nodes.InstructionNode = state.getInstructionFromMem(state.getReg("PC"))
         if isinstance(node, nodes.InstructionNode):
+            if hook(node):
+                break
             # Execute the instruction
-            if state.visualizer:
-                # TODO check breakpoints
-                # TODO update regs when at breakpoint
-                # visualizer.setStatusRegs(state.status)
-                # visualizer.setRegs(state.registers)
-                if not isinstance(node, nodes.SystemCall):
-                    # TODO mark line (when at breakpoint?)
-                    pass
             state, err = node.function(state)
 
             # Exception handling
@@ -81,14 +76,9 @@ def runProgram(state: programState.ProgramState, fileName: str, lines: List[str]
     return state
 
 
-# parseAndRun:: String -> int -> String -> ProgramState
-# calls the parser and the lexer and runs the parsed program
-def parseAndRun(fileName: str, stackSize: int, startLabel: str, useGUI: bool) -> programState.ProgramState:
-    file = open(fileName, "r")
-    lines = file.readlines()
-
-    file_contents: str = reduce(lambda X, Y: X + Y, lines)
-
+# parse:: String -> String -> int -> String -> ProgramState
+# calls the parser and the lexer
+def parse(fileName: str, file_contents: str, stackSize: int, startLabel: str) -> programState.ProgramState:
     loadedTokens = lexer.lexFile(file_contents)
     loadedTokens: List[tokens.Token] = lexer.fixMismatches(loadedTokens, file_contents)
 
@@ -100,21 +90,9 @@ def parseAndRun(fileName: str, stackSize: int, startLabel: str, useGUI: bool) ->
     if errCount > 0:
         exit(-1)
 
-    state = programContext.generateProgramState(context, stackSize, startLabel, fileName, useGUI)
+    state = programContext.generateProgramState(context, stackSize, startLabel, fileName)
 
-    if useGUI:
-        visualizer.setRegs(state.registers)
-        # overwrite print function
-        builtins.print = visualizer.printLine
 
-    res = runProgram(state, fileName, lines)
 
-    if useGUI:
-        visualizer.setStatusRegs(res.status)
-        visualizer.setRegs(res.registers)
 
-        # Disable the GUI when the program is finished
-        visualizer.readButton.configure(state="disabled")
-        visualizer.writeButton.configure(state="disabled")
-
-    return res
+    return state

@@ -1,220 +1,369 @@
-import tkinter
-from tkinter import END, WORD
+import wx
+import wx.stc as stc
 
-from functools import reduce
-from typing import List, Callable, Tuple
+from typing import Union, List, Optional
+
+import builtins
+import os
 import threading
 import time
-import builtins
+import random
 
 import programState
-import nodes
+import interpreter
 
+MARK_BREAKPOINT = 1
+breakpoints = []
 
-# De visualizer kan niet volledig functioneel geschreven worden.
-# Daarom hebben we afgesproken dat dit niet volledig functioneel hoeft
+MARK_CURRENT_LINE = 2
 
-# Flags
-# clockTicked: bool = False
-# clockSpeed: int = 5
-closed = False
-memoryCommand: Callable[[programState.ProgramState], programState.ProgramState] = None
-
-# init window
-window = tkinter.Tk()
-window.title("ARM Cortex M0 assembly simulator")
-window.geometry("850x450")
-window.resizable(0, 0)
-
-
-# Event handler to handle the closing of the visualizer window
-def on_close():
-    global closed
-    closed = True
-    window.destroy()
-    exit()
-
-
-window.protocol("WM_DELETE_WINDOW", on_close)
-
-
-# Validates that a string is a number, returns the number or -1 when it is not a number
-# validateNumber:: String -> int
-def validateNumber(text: str) -> int:
-    if len(text) == 0:
-        print("\033[31m"
-              "Integer should not be empty"
-              "\033[0m")
-        return -1
-    try:
-        return int(text, 0)
-    except ValueError:
-        print(f"\033[31m"
-              f"This is not a valid integer: {text}"
-              f"\033[0m")
-        return -1
-
-
-# Button actions
-# Handles the button to write data to memory
-def write():
-    global memoryCommand
-    # if clockSetting.get() == "manual":
-    if False:
-        addr = validateNumber(addressEntry.get())
-        contents = validateNumber(memContents.get())
-        if addr == -1:
-            return
-        if addr & 3 != 0:
-            print("\033[31m"
-                  "Error while handling button click: To store data in memory, the address needs to be a multiple of 4"
-                  "\033[0m")
-            return
-        internal_address = addr >> 2
-
-        def execute(state: programState.ProgramState) -> programState.ProgramState:
-            print("write", addr)
-            # check address is in range
-            if internal_address < 0 or internal_address >= len(state.memory):
-                print(f"\033[31m"
-                      f"Error while handling button click: Memory address out of range: {addr}, must be in range [0...{len(state.memory)*4}]"
-                      f"\033[0m")
-            else:
-                state.memory[internal_address] = nodes.DataNode(contents, "GUI")
-            return state
-        memoryCommand = execute
-    else:
-        print("\033[31m"
-              "It is not possible to load the contents of an instruction"
-              "\033[0m")
-
-
-# Handles the button to read data from memory
-def read():
-    global memoryCommand
-    # if clockSetting.get() == "manual":
-    if False:
-        addr = validateNumber(addressEntry.get())
-        if addr == -1:
-            return
-        if addr & 3 != 0:
-            print("\033[31m"
-                  "Error while handling button click: To read data from memory, the address needs to be a multiple of 4"
-                  "\033[0m")
-            return
-        internal_address = addr >> 2
-
-        def execute(state: programState.ProgramState) -> programState.ProgramState:
-            print("read", addr)
-            # check address is in range
-            if internal_address < 0 or internal_address >= len(state.memory):
-                print(f"\033[31m"
-                      f"Error while handling button click: Memory address out of range: {addr}, must be in range [0...{len(state.memory) * 4}]"
-                      f"\033[0m")
-                return state
-            word = state.memory[internal_address]
-            if isinstance(word, nodes.DataNode):
-                memContents.delete(0, END)
-                memContents.insert(0, word.value)
-            else:
-                print("\033[31m"
-                      "err"
-                      "\033[0m")
-            return state
-        memoryCommand = execute
-    else:
-        print("\033[31m"
-              "It is only possible to interact with memory in manual mode"
-              "\033[0m")
-
-
-# registers
-tkinter.Label(window, text="Registers:", fg="#000000", font="none 12").place(x=0, y=0)
-
-tkinter.Label(window, text="Read", fg="#00FF00", font="none 12").place(x=100, y=0)
-tkinter.Label(window, text="/", fg="#000000", font="none 12").place(x=150, y=0)
-tkinter.Label(window, text="Write", fg="#FF0000", font="none 12").place(x=160, y=0)
-tkinter.Label(window, text="/", fg="#000000", font="none 12").place(x=210, y=0)
-tkinter.Label(window, text="Both", fg="#0000FF", font="none 12").place(x=220, y=0)
-
-regs = [["R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7"], ["R8", "R9", "R10", "R11", "R12", "SP", "LR", "PC"]]
+# Font face data depending on OS
+if wx.Platform == '__WXMSW__':
+    defaultFont = 'Arial'
+    # other = 'Comic Sans MS'
+    textSize = 10
+    lineNumberSize = 8
+elif wx.Platform == '__WXMAC__':
+    defaultFont = 'Arial'
+    # other = 'Comic Sans MS'
+    textSize = 12
+    lineNumberSize = 10
+else:
+    defaultFont = 'Helvetica'
+    # other = 'new century schoolbook'
+    textSize = 12
+    lineNumberSize = 10
 
 
 class RegisterEntry:
-    def __init__(self, name: str, column: int, line: int):
-        self.name = name
-        tkinter.Label(window, text=name, fg="#000000", font="none 12").place(x=75 * column, y=30 + (60 * line))
-        self.entry = tkinter.Text(window, height=1, width=10, bg="#DDDDDD", fg="#000000", font="none 10", state='disabled')
-        self.entry.place(x=75 * column, y=60 + (60 * line))
+    def __init__(self, parent: wx.Panel, name: str, y: int):
+        # The height of the label is 16 and the height of the text box is 22, this means the labels must be offset by 3 pixels to be centered
+        self.regLabel = wx.StaticText(parent, -1, name, pos=(10, y + 3))
+        self.regLabel.SetBackgroundColour("#FFFFFF")
+        self.regBox = wx.TextCtrl(parent, -1, "", pos=(35, y), size=(80, 22))
+        self.regBox.SetEditable(False)
 
-    def setValue(self, val: int):
-        self.entry.configure(state="normal")
-        self.entry.delete(0.0, END)
-        self.entry.insert(END, val)
-        self.entry.configure(state="disabled")
-
-    def __str__(self):
-        return f"RegisterEntry({self.name})"
-
-    def __repr__(self):
-        return self.__str__()
+    def setValue(self, value: Union[int, bool]):
+        self.regBox.SetEditable(True)
+        self.regBox.SetValue(str(value))
+        self.regBox.SetEditable(False)
 
 
-# List with all register entries in the visualizer
-reg_items: List[RegisterEntry] = reduce(
-    lambda a, b: a+b,
-    list(map(
-        lambda l: list(map(
-            lambda r: RegisterEntry(r[1], r[0], l[0]),
-            enumerate(l[1])
-        )),
-        enumerate(regs)
-    ))
-)
+class Icons:
+    def __init__(self):
+        self.new = wx.Bitmap(os.path.join("icons", "new.png"))
+        self.open = wx.Bitmap(os.path.join("icons", "open.png"))
+        self.save = wx.Bitmap(os.path.join("icons", "save.png"))
+        self.saveAs = wx.Bitmap(os.path.join("icons", "save_as.png"))
 
-# Status register
-tkinter.Label(window, text="Status register:", fg="#000000", font="none 14").place(x=75 * 8, y=0)
+        self.debug = wx.Bitmap(os.path.join("icons", "debug.png"))
+        self.quit = wx.Bitmap(os.path.join("icons", "quit.png"))
+        self.resume = wx.Bitmap(os.path.join("icons", "resume.png"))
+        self.resumeToBreakpoint = wx.Bitmap(os.path.join("icons", "resume_to_breakpoint.png"))
+        self.run = wx.Bitmap(os.path.join("icons", "run.png"))
+        self.singleStep = wx.Bitmap(os.path.join("icons", "single_step.png"))
+        self.stop = wx.Bitmap(os.path.join("icons", "stop.png"))
 
-tkinter.Label(window, text="On", fg="#00FF00", font="none 14").place(x=75 * 10, y=0)
-tkinter.Label(window, text="/", fg="#000000", font="none 14").place(x=(75 * 10)+30, y=0)
-tkinter.Label(window, text="Off", fg="#FF0000", font="none 14").place(x=(75 * 10)+40, y=0)
 
-N = tkinter.Label(window, text="N", fg="#FF0000", font="none 14")
-N.place(x=(75 * 9), y=30)
-Z = tkinter.Label(window, text="Z", fg="#FF0000", font="none 14")
-Z.place(x=(75 * 9)+40, y=30)
-C = tkinter.Label(window, text="C", fg="#FF0000", font="none 14")
-C.place(x=(75 * 9)+80, y=30)
-V = tkinter.Label(window, text="V", fg="#FF0000", font="none 14")
-V.place(x=(75 * 9)+120, y=30)
+class TextPanel(wx.Panel):
+    def __init__(self, parent):
+        wx.Panel.__init__(self, parent)
+        self.SetBackgroundColour("#FFFFFF")
 
-# Instructions
-tkinter.Label(window, text="Instructions:", fg="#000000", font="none 14").place(x=75 * 8, y=155)
+        self.textBox = stc.StyledTextCtrl(self, style=wx.TE_MULTILINE | wx.TE_WORDWRAP | wx.TE_READONLY)
+        # self.textBox.SetEditable(False)
 
-currentLine = tkinter.Label(window, text="Line xxx:", fg="#000000", font="none 10")
-currentLine.place(x=75 * 8, y=180)
+        # Bind Ctrl + '=', Ctrl + '+' and Ctrl + '-' to zooming in and out or making the text bigger/smaller
+        self.textBox.CmdKeyAssign(ord('='), stc.STC_SCMOD_CTRL, stc.STC_CMD_ZOOMIN)  # Ctrl + = to zoom in
+        self.textBox.CmdKeyAssign(ord('+'), stc.STC_SCMOD_CTRL, stc.STC_CMD_ZOOMIN)  # Ctrl + + to zoom in
+        self.textBox.CmdKeyAssign(ord('-'), stc.STC_SCMOD_CTRL, stc.STC_CMD_ZOOMOUT)  # Ctrl + - to zoom out
 
-instr = tkinter.Text(window, width=30, height=1, wrap=WORD, bg="#DDDDDD", state='disabled')
-instr.place(x=75 * 8, y=200)
+        # TODO Set up the ASM keywords for syntax highlighting
+        # self.control.SetLexer(stc.STC_LEX_ASM)
+        # self.control.SetKeyWords(0, " ".join(keyword.kwlist))
 
-# Memory
-tkinter.Label(window, text="Memory:", fg="#000000", font="none 14").place(x=75 * 8, y=240)
+        # Set margins
+        self.textBox.SetMargins(5, 0)  # 5px margin on left inside of text control
 
-tkinter.Label(window, text="Address: ", fg="#000000", font="none 14").place(x=75 * 8, y=270)
-addressEntry = tkinter.Entry(window, width=10, bg="#DDDDDD")
-addressEntry.place(x=690, y=275)
+        self.textBox.SetMarginType(1, stc.STC_MARGIN_SYMBOL)
+        self.textBox.SetMarginMask(1, 2)  # Could not find how masks work in WX, but this works with MARK_BREAKPOINT = 1
+        self.textBox.SetMarginSensitive(1, True)
+        self.textBox.SetMarginWidth(1, 25)
 
-writeButton = tkinter.Button(window, text="Write", width=5, command=write)
-writeButton.place(x=75 * 8, y=300)
-readButton = tkinter.Button(window, text="Read", width=5, command=read)
-readButton.place(x=75 * 9, y=300)
+        self.textBox.SetMarginType(2, stc.STC_MARGIN_NUMBER)  # line numbers column
+        self.textBox.SetMarginWidth(2, 25)  # width of line numbers column
+        self.textBox.SetMarginSensitive(2, True)
 
-memContents = tkinter.Entry(window, width=10, bg="#DDDDDD")
-memContents.place(x=75 * 8, y=330)
+        # Set foldSymbols style based off the instance variable self.foldSymbols
+        # Like a flattened tree control using circular headers and curved joins
+        self.textBox.MarkerDefine(MARK_BREAKPOINT, stc.STC_MARK_CIRCLE, "red", "red")
+        self.textBox.MarkerDefine(MARK_CURRENT_LINE, stc.STC_MARK_CIRCLE, "#888888", "#888888")
 
-# Console
-console = tkinter.Text(window, width=70, height=16, wrap=WORD, bg="#2B2B2B", fg="#DDDDDD", state='disabled')
-console.place(x=0, y=155)
+        # Event handler for margin click
+        self.textBox.Bind(stc.EVT_STC_MARGINCLICK, self.OnMarginClick)
+
+        # setting the style
+        self.textBox.StyleSetSpec(stc.STC_STYLE_DEFAULT, f"face:{defaultFont},size:{textSize}")
+        self.textBox.StyleSetSpec(stc.STC_STYLE_LINENUMBER, f"back:#C0C0C0,face:{defaultFont},size:{lineNumberSize}")
+        self.textBox.StyleClearAll()  # reset all to be like default
+
+        sizer = wx.GridSizer(rows=1, cols=1, vgap=0, hgap=0)
+        sizer.Add(self.textBox, 0, wx.EXPAND)
+        self.SetSizer(sizer)
+
+        # TODO get and update current line
+        # currentLine = 100
+        # self.textBox.MarkerAdd(currentLine, MARK_CURRENT_LINE)
+        # self.textBox.GotoLine(currentLine)
+
+    # Handles when the margin is clicked (folding)
+    def OnMarginClick(self, e):
+        # enable and disable breakpoint as needed
+        lineClicked = self.textBox.LineFromPosition(e.GetPosition())  # line 1 = 0
+        if self.textBox.MarkerGet(lineClicked):
+            if lineClicked in breakpoints:
+                breakpoints.remove(lineClicked)
+            self.textBox.MarkerDelete(lineClicked, MARK_BREAKPOINT)
+        else:
+            if lineClicked not in breakpoints:
+                breakpoints.append(lineClicked)
+            self.textBox.MarkerAdd(lineClicked, MARK_BREAKPOINT)
+        print(breakpoints)
+
+
+class ConsolePanel(wx.Panel):
+    def __init__(self, parent):
+        wx.Panel.__init__(self, parent)
+        self.SetBackgroundColour("#FFFFFF")
+
+        self.textBox = stc.StyledTextCtrl(self, style=wx.TE_MULTILINE | wx.TE_WORDWRAP)
+        self.textBox.SetEditable(False)
+
+        # setting the style
+        self.textBox.StyleSetSpec(stc.STC_STYLE_DEFAULT, f"fore:#FFFFFF,back:#000000,face:{defaultFont},size:{textSize}")
+        self.textBox.SetSelBackground(True, "#333333")
+        self.textBox.StyleClearAll()  # reset all to be like default
+        self.textBox.SetCaretForeground("#FFFFFF")
+
+        sizer = wx.GridSizer(rows=1, cols=1, vgap=0, hgap=0)
+        sizer.Add(self.textBox, 0, wx.EXPAND)
+        self.SetSizer(sizer)
+
+    def append(self, line: str):
+        self.textBox.SetEditable(True)
+        self.textBox.SetValue(self.textBox.GetValue() + line)
+        self.textBox.ScrollToEnd()
+        self.textBox.SetEditable(False)
+
+    def clear(self):
+        self.textBox.SetEditable(True)
+        self.textBox.SetValue("")
+        self.textBox.SetEditable(False)
+
+
+class RightPanel(wx.Panel):
+    def __init__(self, parent):
+        wx.Panel.__init__(self, parent)
+        self.SetBackgroundColour("#FFFFFF")
+
+        horSplitter = wx.SplitterWindow(self)
+        self.textPanel = TextPanel(horSplitter)
+        self.console = ConsolePanel(horSplitter)
+        horSplitter.SplitHorizontally(self.textPanel, self.console)
+        horSplitter.SetMinimumPaneSize(500)
+
+        sizer = wx.GridSizer(rows=1, cols=1, vgap=0, hgap=0)
+        sizer.Add(horSplitter, 0, wx.EXPAND)
+        self.SetSizer(sizer)
+
+
+class SidePanel(wx.Panel):
+    def __init__(self, parent):
+        wx.Panel.__init__(self, parent)
+        self.SetBackgroundColour("#FFFFFF")
+
+        # TODO add regs
+        regLabel = wx.StaticText(self, -1, "Registers:", pos=(10, 10))
+        regs = ["R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9", "R10", "R11", "R12", "SP", "LR", "PC"]
+        self.regEntries = [RegisterEntry(self, reg, 30+30*idx) for idx, reg in enumerate(regs)]
+
+        statusRegLabel = wx.StaticText(self, -1, "Status Registers:", pos=(10, 530))
+        self.statusRegEntries = [RegisterEntry(self, reg, 550+30*idx) for idx, reg in enumerate(["N", "Z", "C", "V"])]
+
+        for reg in self.statusRegEntries:
+            reg.setValue(random.randint(0, 1) == 1)
+
+        for reg in self.regEntries:
+            reg.setValue(random.randint(0, 9999999999))
+
+    # Initialize the registers in the visualizer with there actual values
+    def setRegs(self, registers: List[int]):
+        for register, value in zip(self.regEntries, registers):
+            register.setValue(value)
+
+    # Set the colors of the statusRegister section of the visualizer to the actual contents of the statusRegister
+    # setStatusRegs:: bool -> bool -> bool -> bool -> void
+    def setStatusRegs(self, status: programState.StatusRegister):
+        # ["N", "Z", "C", "V"]
+        self.statusRegEntries[0].setValue(status.N)
+        self.statusRegEntries[1].setValue(status.Z)
+        self.statusRegEntries[2].setValue(status.C)
+        self.statusRegEntries[3].setValue(status.V)
+
+    def update(self, state: programState.ProgramState):
+        self.setRegs(state.registers)
+        self.setStatusRegs(state.status)
+
+
+# Application Framework
+class MainWindow(wx.Frame):
+    def __init__(self, parent, title):
+        # Initialize the application Frame and create the Styled Text Control
+        wx.Frame.__init__(self, parent, title=title, size=(1200, 800))
+
+        vertSplitter = wx.SplitterWindow(self)
+        self.sidePanel = SidePanel(vertSplitter)
+        right = RightPanel(vertSplitter)
+        vertSplitter.SplitVertically(self.sidePanel, right)
+        vertSplitter.SetMinimumPaneSize(150)
+
+        self.textPanel = right.textPanel
+        self.console = right.console
+
+        self.dirName = ''
+        self.fileName = ''
+
+        # Toolbar
+        self.icons = Icons()
+        toolbar: wx.ToolBar = self.CreateToolBar()
+        toolbar.SetBackgroundColour('DARKGRAY')
+
+        # tool bindings
+        newTool = toolbar.AddTool(wx.ID_ANY, "New",  self.icons.new, "Create empty application")
+        self.Bind(wx.EVT_TOOL, self.OnNew, newTool)
+        openTool = toolbar.AddTool(wx.ID_ANY, "Open", self.icons.open, "Open file")
+        self.Bind(wx.EVT_TOOL, self.OnOpen, openTool)
+        saveTool = toolbar.AddTool(wx.ID_ANY, "Save",  self.icons.save, "Save file")
+        self.Bind(wx.EVT_TOOL, self.OnSave, saveTool)
+        saveAsTool = toolbar.AddTool(wx.ID_ANY, "Save As", self.icons.saveAs, "Save file as")
+        self.Bind(wx.EVT_TOOL, self.OnSaveAs, saveAsTool)
+
+        toolbar.AddSeparator()
+
+        runTool: wx.ToolBarToolBase = toolbar.AddTool(wx.ID_ANY, "Run", self.icons.run, "Run the program")
+        self.Bind(wx.EVT_TOOL, self.OnRun, runTool)
+        debugTool: wx.ToolBarToolBase = toolbar.AddTool(wx.ID_ANY, "Debug",  self.icons.debug, "Debug the program")
+        self.Bind(wx.EVT_TOOL, lambda _: print("debug"), debugTool)
+        stopTool: wx.ToolBarToolBase = toolbar.AddTool(wx.ID_ANY, "Stop",  self.icons.stop, "Stop the program")
+        self.Bind(wx.EVT_TOOL, self.OnStop, stopTool)
+        singleStepTool: wx.ToolBarToolBase = toolbar.AddTool(wx.ID_ANY, "Single-step",  self.icons.singleStep, "Single-step the program")
+        self.Bind(wx.EVT_TOOL, lambda _: print("single-step"), singleStepTool)
+        resumeBreakpointTool: wx.ToolBarToolBase = toolbar.AddTool(wx.ID_ANY, "Resume-to-breakpoint", self.icons.resumeToBreakpoint, "Resume to the next breakpoint")
+        self.Bind(wx.EVT_TOOL, lambda _: print("resume to next breakpoint"), resumeBreakpointTool)
+        resumeTool: wx.ToolBarToolBase = toolbar.AddTool(wx.ID_ANY, "Resume",  self.icons.resume, "Run the rest of the program")
+        self.Bind(wx.EVT_TOOL, lambda _: print("Run rest of program"), resumeTool)
+
+        toolbar.AddSeparator()
+
+        quitTool = toolbar.AddTool(wx.ID_ANY, "Quit", self.icons.quit, "Quit")
+        self.Bind(wx.EVT_TOOL, lambda _: self.Close(), quitTool)
+        toolbar.Realize()
+
+        self.runThread: Optional[threading.Thread] = None
+        self.stopFlag = False
+
+        # go ahead and display the application
+        self.Show()
+
+    # New document menu action
+    def OnNew(self, e):
+        # Empty the instance variable for current filename, and the main text box's content
+        self.fileName = ""
+        self.textPanel.textBox.SetValue("")
+        self.console.clear()
+
+    # Open existing document menu action
+    def OnOpen(self, e):
+        # First try opening the existing file; if it fails, the file doesn't exist most likely
+        try:
+            dlg = wx.FileDialog(self, "Choose a file to open", self.dirName, "", "*.*", wx.FD_OPEN)
+            if dlg.ShowModal() == wx.ID_OK:
+                self.fileName = dlg.GetFilename()
+                self.dirName = dlg.GetDirectory()
+                f = open(os.path.join(self.dirName, self.fileName), 'r')
+                self.textPanel.textBox.SetValue(f.read())
+                self.console.clear()
+                f.close()
+            dlg.Destroy()
+        except:
+            dlg = wx.MessageDialog(self, " Couldn't open file", "Error 009", wx.ICON_ERROR)
+            dlg.ShowModal()
+            dlg.Destroy()
+
+    # Save the document menu action
+    def OnSave(self, e):
+        # First try just saving the existing file, but if that file doesn't
+        # exist it will fail, and the except will launch the Save As.
+        try:
+            f = open(os.path.join(self.dirName, self.fileName), 'w')
+            f.write(self.textPanel.textBox.GetValue())
+            f.close()
+        except:
+            try:
+                # If regular save fails, try the Save As method.
+                dlg = wx.FileDialog(self, "Save file as", self.dirName, "Untitled", "*.*", wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
+                if dlg.ShowModal() == wx.ID_OK:
+                    self.fileName = dlg.GetFilename()
+                    self.dirName = dlg.GetDirectory()
+                    f = open(os.path.join(self.dirName, self.fileName), 'w')
+                    f.write(self.textPanel.textBox.GetValue())
+                    f.close()
+                dlg.Destroy()
+            except:
+                dlg = wx.MessageDialog(self, " Couldn't save file", "Error 009", wx.ICON_ERROR)
+                dlg.ShowModal()
+                dlg.Destroy()
+
+    # Save a new document menu action
+    def OnSaveAs(self, e):
+        try:
+            dlg = wx.FileDialog(self, "Save file as", self.dirName, self.fileName, "*.*", wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
+            if dlg.ShowModal() == wx.ID_OK:
+                self.fileName = dlg.GetFilename()
+                self.dirName = dlg.GetDirectory()
+                f = open(os.path.join(self.dirName, self.fileName), 'w')
+                f.write(self.textPanel.textBox.GetValue())
+                f.close()
+            dlg.Destroy()
+        except:
+            dlg = wx.MessageDialog(self, " Couldn't save file", "Error 009", wx.ICON_ERROR)
+            dlg.ShowModal()
+            dlg.Destroy()
+
+    def OnRun(self, e):
+        def run():
+            file_contents: str = self.textPanel.textBox.GetValue()
+            state = interpreter.parse(self.fileName, file_contents, 1024, "_start")  # TODO get stackSize and start label from main
+            self.sidePanel.update(state)
+
+            res = interpreter.runProgram(state, self.fileName, file_contents, lambda _: self.stopFlag)
+            self.sidePanel.update(res)
+
+            self.runThread = None
+            self.stopFlag = False
+
+        self.runThread = threading.Thread(target=run)
+        self.runThread.setDaemon(True)
+        self.runThread.start()
+
+    def OnStop(self, e):
+        if self.runThread is not None:
+            self.stopFlag = True
+
+
+app = wx.App(False)
+frame = MainWindow(None, "ASM debugger (beta)")
+
 addText = ''
 # save the old print function to print to the console
 __old_print = builtins.print
@@ -249,67 +398,13 @@ def printLine(*args, sep=' ', end='\n', file=None):
 
     # Flush when \n is sent
     if '\n' in addText:
-        console.configure(state="normal")
-        console.insert(END, addText)
-        console.configure(state="disabled")
+        frame.console.append(addText)
 
         addText = ''
 
 
-# Initialize the registers in the visualizer with there actual values
-def setRegs(registers: List[int]):
-    for register, value in zip(reg_items, registers):
-        register.setValue(value)
+# overwrite print function
+builtins.print = printLine
 
-
-# Set the colors of the statusRegister section of the visualizer to the actual contents of the statusRegister
-# setStatusRegs:: bool -> bool -> bool -> bool -> void
-def setStatusRegs(status: programState.StatusRegister):
-    if status.N:
-        N.configure(fg="#00FF00")
-    else:
-        N.configure(fg="#FF0000")
-
-    if status.Z:
-        Z.configure(fg="#00FF00")
-    else:
-        Z.configure(fg="#FF0000")
-
-    if status.C:
-        C.configure(fg="#00FF00")
-    else:
-        C.configure(fg="#FF0000")
-
-    if status.V:
-        V.configure(fg="#00FF00")
-    else:
-        V.configure(fg="#FF0000")
-
-
-# Update the current instruction and its location in the visualizer
-# setLine:: String -> int -> void
-def setLine(line: int, text: str):
-    currentLine.configure(text=f"Line {line}:")
-    instr.configure(state="normal")
-    instr.delete(0.0, END)
-    instr.insert(END, text)
-    instr.configure(state="disabled")
-
-
-# Test code
 if __name__ == "__main__":
-    reg_items[0].setValue(1_000_000_000)
-
-    N.configure(fg="#00FF00")
-
-    currentLine.configure(text="Line 1:")
-
-    instr.configure(state="normal")
-    instr.delete(0.0, END)
-    instr.insert(END, "mov r1, #'A'     // 65")
-    instr.configure(state="disabled")
-
-    for i in range(32):
-        print("line", i, 'test', sep=';', end='\\')
-
-    window.mainloop()
+    app.MainLoop()

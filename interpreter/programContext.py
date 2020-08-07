@@ -84,7 +84,7 @@ def convertLabelsToDict(labelList: List[nodes.Label], stackSize: int, textSize: 
 
 # generateProgramState:: ProgramContext -> int -> String -> String -> ProgramState
 # Generate a ProgramState based on a ProgramContext
-def generateProgramState(context: ProgramContext, stackSize: int, startLabel: str, fileName: str, useGUI: bool) -> programState.ProgramState:
+def generateProgramState(context: ProgramContext, stackSize: int, startLabel: str, fileName: str) -> programState.ProgramState:
     text: List[nodes.Node] = context.text + [nodes.SystemCall(subroutine_print_char, "print_char"),
                                              nodes.SystemCall(subroutine_print_int, "print_int"),
                                              # Subroutine to start the program and stop it afterwards
@@ -104,4 +104,4 @@ def generateProgramState(context: ProgramContext, stackSize: int, startLabel: st
     labels = convertLabelsToDict(labelList, stackSize, len(text), len(context.bss))
 
     regs[regToID("PC")] = labels["print_int"].address+4
-    return programState.ProgramState(regs, status, mem, labels, fileName, useGUI)
+    return programState.ProgramState(regs, status, mem, labels, fileName)

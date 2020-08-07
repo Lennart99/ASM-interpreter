@@ -61,14 +61,13 @@ def regToID(name: str) -> int:
 
 
 class ProgramState:
-    def __init__(self, regs: List[int], status: StatusRegister, memory: List[nodes.Node], labels: Dict[str, nodes.Label], file: str, useGUI: bool):
+    def __init__(self, regs: List[int], status: StatusRegister, memory: List[nodes.Node], labels: Dict[str, nodes.Label], file: str):
         self.registers: List[int] = regs
         self.status: StatusRegister = status
         self.memory: List[nodes.Node] = memory
         self.labels: Dict[str, nodes.Label] = labels
         self.fileName = file
         self.hasReturned = True
-        self.visualizer: bool = useGUI
 
     def __str__(self) -> str:
         return "{}({}, {})".format(type(self).__name__, self.registers, self.status)
