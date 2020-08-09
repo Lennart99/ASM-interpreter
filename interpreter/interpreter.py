@@ -1,4 +1,4 @@
-from typing import List, Callable
+from typing import List, Callable, Tuple
 from functools import reduce
 
 import nodes
@@ -39,38 +39,48 @@ def generateStacktrace(state: programState.ProgramState, error: programState.Run
     return res + f"\033[0m"  # Normal color
 
 
-# runProgram:: ProgramState -> String -> String -> (InstructionNode -> bool) -> ProgramState
-# The hook must return True when the program must be interrupted before the instruction is executed
-def runProgram(state: programState.ProgramState, fileName: str, file_contents: str, hook: Callable[[nodes.InstructionNode], bool]) -> programState.ProgramState:
-    lines = file_contents.split('\n')
+# executeInstruction:: InstructionNode -> ProgramState -> String -> [String] -> ProgramState, bool
+def executeInstruction(node: nodes.InstructionNode, state: programState.ProgramState, fileName: str, lines: List[str]) -> Tuple[programState.ProgramState, bool]:
+    if isinstance(node, nodes.InstructionNode):
+        # Execute the instruction
+        # if state.visualizer:
+        #     # TODO check breakpoints
+        #     # TODO update regs when at breakpoint
+        #     # visualizer.setStatusRegs(state.status)
+        #     # visualizer.setRegs(state.registers)
+        #     if not isinstance(node, nodes.SystemCall):
+        #         # TODO mark line (when at breakpoint?)
+        #         pass
+        state, err = node.function(state)
 
+        # Exception handling
+        if err is not None:
+            if isinstance(err, programState.RunError):
+                if err.errorType == programState.RunError.ErrorType.Error:
+                    print(generateStacktrace(state, err, fileName, lines))
+                    return state, False
+                elif err.errorType == programState.RunError.ErrorType.Warning:
+                    print(generateStacktrace(state, err, fileName, lines))
+                elif isinstance(err, programState.StopProgram):
+                    return state, False
+        # Set a flag in the ProgramState when a subroutine returned. This way the stacktrace generator knows to not print a stacktrace element for the link register
+        pc = state.getReg("PC")
+        if pc == state.getReg("LR"):
+            state.hasReturned = True
+        # increment the program counter
+        state.setReg("PC", pc + 4)
+        return state, True
+    else:
+        if isinstance(node, programState.RunError):
+            print(generateStacktrace(state, node, fileName, lines))
+        return state, False
+
+
+# runProgram:: ProgramState -> String -> [String] -> ProgramState
+def runProgram(state: programState.ProgramState, fileName: str, lines: List[str]) -> programState.ProgramState:
     while True:
-        node: nodes.InstructionNode = state.getInstructionFromMem(state.getReg("PC"))
-        if isinstance(node, nodes.InstructionNode):
-            if hook(node):
-                break
-            # Execute the instruction
-            state, err = node.function(state)
-
-            # Exception handling
-            if err is not None:
-                if isinstance(err, programState.RunError):
-                    if err.errorType == programState.RunError.ErrorType.Error:
-                        print(generateStacktrace(state, err, fileName, lines))
-                        break
-                    elif err.errorType == programState.RunError.ErrorType.Warning:
-                        print(generateStacktrace(state, err, fileName, lines))
-                        pass
-                    elif isinstance(err, programState.StopProgram):
-                        break
-            # Set a flag in the ProgramState when a subroutine returned. This way the stacktrace generator knows to not print a stacktrace element for the link register
-            pc = state.getReg("PC")
-            if pc == state.getReg("LR"):
-                state.hasReturned = True
-            # increment the program counter
-            state.setReg("PC", pc + 4)
-        else:
-            # TODO err
+        state, res = executeInstruction(state.getInstructionFromMem(state.getReg("PC")), state, fileName, lines)
+        if not res:
             break
 
     return state
@@ -90,9 +100,4 @@ def parse(fileName: str, file_contents: str, stackSize: int, startLabel: str) ->
     if errCount > 0:
         exit(-1)
 
-    state = programContext.generateProgramState(context, stackSize, startLabel, fileName)
-
-
-
-
-    return state
+    return programContext.generateProgramState(context, stackSize, startLabel, fileName)

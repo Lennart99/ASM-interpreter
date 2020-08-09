@@ -150,7 +150,7 @@ class ConsolePanel(wx.Panel):
 
     def append(self, line: str):
         self.textBox.SetEditable(True)
-        self.textBox.SetValue(self.textBox.GetValue() + line)
+        self.textBox.AppendText(line)
         self.textBox.ScrollToEnd()
         self.textBox.SetEditable(False)
 
@@ -339,8 +339,16 @@ class MainWindow(wx.Frame):
             state = interpreter.parse(self.fileName, file_contents, 1024, "_start")  # TODO get stackSize and start label from main
             self.sidePanel.update(state)
 
-            res = interpreter.runProgram(state, self.fileName, file_contents, lambda _: self.stopFlag)
-            self.sidePanel.update(res)
+            lines = file_contents.split('\n')
+
+            while True:
+                if self.stopFlag:
+                    break
+                state, success = interpreter.executeInstruction(state.getInstructionFromMem(state.getReg("PC")), state, self.fileName, lines)
+                if not success:
+                    break
+
+            self.sidePanel.update(state)
 
             self.runThread = None
             self.stopFlag = False

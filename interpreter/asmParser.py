@@ -211,7 +211,8 @@ def parse(tokenList: List[tokens.Token]) -> ProgramContext:
                 # return parse(tokenList, context, section)
             else:
                 err = instructions.generateUnexpectedTokenError(head.line, sep.contents, "':'")
-                return parse(tokenList, addNodeToProgramContext(context, err, section), section)
+                addNodeToProgramContext(context, err, section)
+                # return parse(tokenList, addNodeToProgramContext(context, err, section), section)
         elif isinstance(head, tokens.Section):
             if head.contents == ".text":
                 section = nodes.Node.Section.TEXT

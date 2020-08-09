@@ -19,4 +19,4 @@ else:
     file_contents: str = reduce(lambda X, Y: X + Y, lines)
 
     state = interpreter.parse(fileName, file_contents, stackSize, startLabel)
-    interpreter.runProgram(state, fileName, file_contents, lambda _: False)
+    interpreter.runProgram(state, fileName, lines)
