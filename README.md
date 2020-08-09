@@ -50,3 +50,6 @@ Using the visualizer, the register processor can be viewed easily to make debugg
 
 ![alt text](pictures/visualizer.png)
 
+
+
+Th icons for New, Open, Save and Save As have bneen sources from here: https://findicons.com/pack/566/isimple_system
