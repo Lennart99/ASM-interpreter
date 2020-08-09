@@ -238,14 +238,14 @@ class MainWindow(wx.Frame):
         toolbar.SetBackgroundColour('DARKGRAY')
 
         # tool bindings
-        newTool = toolbar.AddTool(wx.ID_ANY, "New",  self.icons.new, "Create empty application")
-        self.Bind(wx.EVT_TOOL, self.OnNew, newTool)
-        openTool = toolbar.AddTool(wx.ID_ANY, "Open", self.icons.open, "Open file")
-        self.Bind(wx.EVT_TOOL, self.OnOpen, openTool)
-        saveTool = toolbar.AddTool(wx.ID_ANY, "Save",  self.icons.save, "Save file")
-        self.Bind(wx.EVT_TOOL, self.OnSave, saveTool)
-        saveAsTool = toolbar.AddTool(wx.ID_ANY, "Save As", self.icons.saveAs, "Save file as")
-        self.Bind(wx.EVT_TOOL, self.OnSaveAs, saveAsTool)
+        self.newTool = toolbar.AddTool(wx.ID_ANY, "New",  self.icons.new, "Create empty application")
+        self.Bind(wx.EVT_TOOL, self.OnNew, self.newTool)
+        self.openTool = toolbar.AddTool(wx.ID_ANY, "Open", self.icons.open, "Open file")
+        self.Bind(wx.EVT_TOOL, self.OnOpen, self.openTool)
+        self.saveTool = toolbar.AddTool(wx.ID_ANY, "Save",  self.icons.save, "Save file")
+        self.Bind(wx.EVT_TOOL, self.OnSave, self.saveTool)
+        self.saveAsTool = toolbar.AddTool(wx.ID_ANY, "Save As", self.icons.saveAs, "Save file as")
+        self.Bind(wx.EVT_TOOL, self.OnSaveAs, self.saveAsTool)
 
         toolbar.AddSeparator()
 
@@ -262,10 +262,7 @@ class MainWindow(wx.Frame):
         self.resumeTool: wx.ToolBarToolBase = toolbar.AddTool(wx.ID_ANY, "Resume",  self.icons.resume, "Run the rest of the program")
         self.Bind(wx.EVT_TOOL, self.OnResume, self.resumeTool)
 
-        self.stopTool.Enable(False)
-        self.singleStepTool.Enable(False)
-        self.resumeBreakpointTool.Enable(False)
-        self.resumeTool.Enable(False)
+        self.resetTools()
 
         toolbar.AddSeparator()
 
@@ -281,12 +278,53 @@ class MainWindow(wx.Frame):
         # go ahead and display the application
         self.Show()
 
+    def resetTools(self):
+        self.newTool.Enable(True)
+        self.openTool.Enable(True)
+        self.saveTool.Enable(True)
+        self.saveAsTool.Enable(True)
+
+        self.runTool.Enable(True)
+        self.debugTool.Enable(True)
+        self.stopTool.Enable(False)
+
+        self.singleStepTool.Enable(False)
+        self.resumeBreakpointTool.Enable(False)
+        self.resumeTool.Enable(False)
+
+        self.GetToolBar().Realize()
+
+    def enableDebugTools(self, enable):
+        self.singleStepTool.Enable(enable)
+        self.resumeBreakpointTool.Enable(enable)
+        self.resumeTool.Enable(enable)
+
+        self.GetToolBar().Realize()
+
+    def enableRunTools(self, enable):
+        self.runTool.Enable(enable)
+        self.debugTool.Enable(enable)
+
+        self.GetToolBar().Realize()
+
+    def enableFileTools(self, enable):
+        self.newTool.Enable(enable)
+        self.openTool.Enable(enable)
+        self.saveTool.Enable(enable)
+        self.saveAsTool.Enable(enable)
+
+        self.GetToolBar().Realize()
+
     # New document menu action
     def OnNew(self, _):
         # Empty the instance variable for current filename, and the main text box's content
         self.fileName = ""
         self.textPanel.textBox.SetValue("")
         self.console.clear()
+
+        breakpoints.clear()
+        self.textPanel.textBox.MarkerDeleteAll(MARK_BREAKPOINT)
+        self.textPanel.textBox.MarkerDeleteAll(MARK_CURRENT_LINE)
 
     # Open existing document menu action
     def OnOpen(self, _):
@@ -300,6 +338,10 @@ class MainWindow(wx.Frame):
                 with open(path, 'r') as f:
                     self.textPanel.textBox.SetValue(f.read())
                 self.console.clear()
+
+                breakpoints.clear()
+                self.textPanel.textBox.MarkerDeleteAll(MARK_BREAKPOINT)
+                self.textPanel.textBox.MarkerDeleteAll(MARK_CURRENT_LINE)
             else:
                 dlg = wx.MessageDialog(self, " Couldn't open file", "Error 009", wx.ICON_ERROR)
                 dlg.ShowModal()
@@ -337,6 +379,8 @@ class MainWindow(wx.Frame):
 
     def OnRun(self, _):
         def run():
+            self.textPanel.textBox.SetEditable(False)
+
             file_contents: str = self.textPanel.textBox.GetValue()
             state = interpreter.parse(self.fileName, file_contents, 1024, "_start")  # TODO get stackSize and start label from main
             self.sidePanel.update(state)
@@ -350,25 +394,23 @@ class MainWindow(wx.Frame):
                 if not success:
                     break
 
+            # program has exited
             self.sidePanel.update(state)
 
             self.runThread = None
             self.stopFlag = False
 
-            self.runTool.Enable(True)
-            self.debugTool.Enable(True)
-            self.stopTool.Enable(False)
-            self.GetToolBar().Realize()
+            self.resetTools()
 
             self.textPanel.textBox.MarkerDeleteAll(MARK_CURRENT_LINE)
+            self.textPanel.textBox.SetEditable(True)
 
         if self.runThread is None:
             self.console.clear()
 
-            self.runTool.Enable(False)
-            self.debugTool.Enable(False)
             self.stopTool.Enable(True)
-            self.GetToolBar().Realize()
+            self.enableRunTools(False)
+            self.enableFileTools(False)
 
             self.stopFlag = False
 
@@ -378,52 +420,48 @@ class MainWindow(wx.Frame):
 
     def OnDebug(self, _):
         def run():
+            self.textPanel.textBox.SetEditable(False)
+
             file_contents: str = self.textPanel.textBox.GetValue()
             state = interpreter.parse(self.fileName, file_contents, 1024, "_start")  # TODO get stackSize and start label from main
             self.sidePanel.update(state)
 
             lines = file_contents.split('\n')
 
-            while True:
-                if self.stopFlag:
-                    break
+            while not self.stopFlag:
                 node: nodes.InstructionNode = state.getInstructionFromMem(state.getReg("PC"))
                 if node.line in breakpoints:
+                    # breakpoint found - save state and enable the single-step and resume tools
                     self.debugState = state
                     self.runThread = None
 
                     self.sidePanel.update(state)
                     self.textPanel.markLine(node.line)
 
-                    self.singleStepTool.Enable(True)
-                    self.resumeBreakpointTool.Enable(True)
-                    self.resumeTool.Enable(True)
-                    self.GetToolBar().Realize()
+                    self.enableDebugTools(True)
 
                     return
                 state, success = interpreter.executeInstruction(node, state, self.fileName, lines)
                 if not success:
                     break
 
+            # program has exited
             self.sidePanel.update(state)
 
             self.runThread = None
             self.stopFlag = False
 
-            self.runTool.Enable(True)
-            self.debugTool.Enable(True)
-            self.stopTool.Enable(False)
-            self.GetToolBar().Realize()
+            self.resetTools()
 
             self.textPanel.textBox.MarkerDeleteAll(MARK_CURRENT_LINE)
+            self.textPanel.textBox.SetEditable(True)
 
         if self.runThread is None:
             self.console.clear()
 
-            self.runTool.Enable(False)
-            self.debugTool.Enable(False)
             self.stopTool.Enable(True)
-            self.GetToolBar().Realize()
+            self.enableRunTools(False)
+            self.enableFileTools(False)
 
             self.stopFlag = False
 
@@ -437,15 +475,10 @@ class MainWindow(wx.Frame):
         if self.debugState is not None:
             self.debugState = None
 
-            self.runTool.Enable(True)
-            self.debugTool.Enable(True)
-            self.stopTool.Enable(False)
-            self.singleStepTool.Enable(False)
-            self.resumeBreakpointTool.Enable(False)
-            self.resumeTool.Enable(False)
-            self.GetToolBar().Realize()
+            self.resetTools()
 
             self.textPanel.textBox.MarkerDeleteAll(MARK_CURRENT_LINE)
+            self.textPanel.textBox.SetEditable(True)
 
     def OnStep(self, _):
         lines = self.textPanel.textBox.GetValue().split('\n')
@@ -454,22 +487,22 @@ class MainWindow(wx.Frame):
         state, success = interpreter.executeInstruction(node, self.debugState, self.fileName, lines)
 
         self.sidePanel.update(state)
-        nextNode: nodes.InstructionNode = self.debugState.getInstructionFromMem(self.debugState.getReg("PC"))
-        if not isinstance(nextNode, nodes.SystemCall):
-            self.textPanel.markLine(nextNode.line)
 
         if not success:
+            # program has exited
             self.debugState = None
+            self.runThread = None
+            self.stopFlag = False
 
-            self.runTool.Enable(True)
-            self.debugTool.Enable(True)
-            self.stopTool.Enable(False)
-            self.singleStepTool.Enable(False)
-            self.resumeBreakpointTool.Enable(False)
-            self.resumeTool.Enable(False)
-            self.GetToolBar().Realize()
+            self.resetTools()
 
             self.textPanel.textBox.MarkerDeleteAll(MARK_CURRENT_LINE)
+            self.textPanel.textBox.SetEditable(True)
+        else:
+            self.debugState = state
+            nextNode: nodes.InstructionNode = self.debugState.getInstructionFromMem(self.debugState.getReg("PC"))
+            if not isinstance(nextNode, nodes.SystemCall):
+                self.textPanel.markLine(nextNode.line)
 
     def OnResumeBreakpoint(self, _):
         def run():
@@ -480,21 +513,17 @@ class MainWindow(wx.Frame):
 
             lines = self.textPanel.textBox.GetValue().split('\n')
 
-            while True:
-                if self.stopFlag:
-                    break
+            while not self.stopFlag:
                 node: nodes.InstructionNode = state.getInstructionFromMem(state.getReg("PC"))
                 if node.line in breakpoints and not firstRun:
+                    # breakpoint found - save state and enable the single-step and resume tools
                     self.debugState = state
                     self.runThread = None
 
                     self.sidePanel.update(state)
                     self.textPanel.markLine(node.line)
 
-                    self.singleStepTool.Enable(True)
-                    self.resumeBreakpointTool.Enable(True)
-                    self.resumeTool.Enable(True)
-                    self.GetToolBar().Realize()
+                    self.enableDebugTools(True)
 
                     return
                 state, success = interpreter.executeInstruction(node, state, self.fileName, lines)
@@ -502,26 +531,20 @@ class MainWindow(wx.Frame):
                 if not success:
                     break
 
+            # program has exited
             self.sidePanel.update(state)
 
             self.runThread = None
             self.debugState = None
             self.stopFlag = False
 
-            self.runTool.Enable(True)
-            self.debugTool.Enable(True)
-            self.stopTool.Enable(False)
-            self.singleStepTool.Enable(False)
-            self.resumeBreakpointTool.Enable(False)
-            self.resumeTool.Enable(False)
-            self.GetToolBar().Realize()
-            self.GetToolBar().Realize()
+            self.resetTools()
+
+            self.textPanel.textBox.MarkerDeleteAll(MARK_CURRENT_LINE)
+            self.textPanel.textBox.SetEditable(True)
 
         if self.runThread is None:
-            self.runTool.Enable(False)
-            self.debugTool.Enable(False)
-            self.stopTool.Enable(True)
-            self.GetToolBar().Realize()
+            self.enableDebugTools(False)
 
             self.stopFlag = False
 
@@ -536,33 +559,26 @@ class MainWindow(wx.Frame):
 
             lines = self.textPanel.textBox.GetValue().split('\n')
 
-            while True:
-                if self.stopFlag:
-                    break
+            while not self.stopFlag:
                 node: nodes.InstructionNode = state.getInstructionFromMem(state.getReg("PC"))
                 state, success = interpreter.executeInstruction(node, state, self.fileName, lines)
                 if not success:
                     break
 
+            # program has exited
             self.sidePanel.update(state)
 
             self.runThread = None
-            self.stopFlag = False
             self.debugState = None
+            self.stopFlag = False
 
-            self.runTool.Enable(True)
-            self.debugTool.Enable(True)
-            self.stopTool.Enable(False)
-            self.singleStepTool.Enable(False)
-            self.resumeBreakpointTool.Enable(False)
-            self.resumeTool.Enable(False)
-            self.GetToolBar().Realize()
+            self.resetTools()
+
+            self.textPanel.textBox.MarkerDeleteAll(MARK_CURRENT_LINE)
+            self.textPanel.textBox.SetEditable(True)
 
         if self.runThread is None:
-            self.runTool.Enable(False)
-            self.debugTool.Enable(False)
-            self.stopTool.Enable(True)
-            self.GetToolBar().Realize()
+            self.enableDebugTools(False)
 
             self.stopFlag = False
 
@@ -574,7 +590,6 @@ class MainWindow(wx.Frame):
 app = wx.App(False)
 frame = MainWindow(None, "ASM debugger (beta)")
 
-addText = ''
 # save the old print function to print to the console
 __old_print = builtins.print
 
@@ -582,8 +597,6 @@ __old_print = builtins.print
 # Overrides the print function to forward all output to the visualizer
 # printLine:: [any] -> String -> String -> Stream -> void
 def printLine(*args, sep=' ', end='\n', file=None):
-    global addText
-
     def stripColor(text: str) -> str:
         if "\033[" in text:
             idx = text.index("\033[")
@@ -600,17 +613,14 @@ def printLine(*args, sep=' ', end='\n', file=None):
     if end is None:
         end = '\n'
 
+    addText = ''
     if len(args) > 0:
-        addText += str(args[0])
+        addText = str(args[0])
         for arg in args[1:]:
             addText += str(sep) + str(arg)
     addText += str(end)
 
-    # Flush when \n is sent
-    if '\n' in addText:
-        frame.console.append(stripColor(addText))
-
-        addText = ''
+    frame.console.append(stripColor(addText))
 
 
 # overwrite print function
