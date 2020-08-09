@@ -6,10 +6,10 @@ from typing import Union, List, Optional
 import builtins
 import os
 import threading
-import random
 
 import programState
 import interpreter
+import nodes
 
 MARK_BREAKPOINT = 1
 breakpoints = []
@@ -110,24 +110,22 @@ class TextPanel(wx.Panel):
         sizer.Add(self.textBox, 0, wx.EXPAND)
         self.SetSizer(sizer)
 
-        # TODO get and update current line
-        # currentLine = 100
-        # self.textBox.MarkerAdd(currentLine, MARK_CURRENT_LINE)
-        # self.textBox.GotoLine(currentLine)
-
     # Handles when the margin is clicked (folding)
     def OnMarginClick(self, e):
         # enable and disable breakpoint as needed
         lineClicked = self.textBox.LineFromPosition(e.GetPosition())  # line 1 = 0
         if self.textBox.MarkerGet(lineClicked):
-            if lineClicked in breakpoints:
-                breakpoints.remove(lineClicked)
+            if (lineClicked+1) in breakpoints:
+                breakpoints.remove(lineClicked+1)
             self.textBox.MarkerDelete(lineClicked, MARK_BREAKPOINT)
         else:
-            if lineClicked not in breakpoints:
-                breakpoints.append(lineClicked)
+            if (lineClicked+1) not in breakpoints:
+                breakpoints.append(lineClicked+1)
             self.textBox.MarkerAdd(lineClicked, MARK_BREAKPOINT)
-        print(breakpoints)
+
+    def markLine(self, line: int):
+        self.textBox.MarkerDeleteAll(MARK_CURRENT_LINE)
+        self.textBox.MarkerAdd(line-1, MARK_CURRENT_LINE)
 
 
 class ConsolePanel(wx.Panel):
@@ -181,7 +179,6 @@ class SidePanel(wx.Panel):
         wx.Panel.__init__(self, parent)
         self.SetBackgroundColour("#FFFFFF")
 
-        # TODO add regs
         wx.StaticText(self, -1, "Registers:", pos=(10, 10))
         regs = ["R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9", "R10", "R11", "R12", "SP", "LR", "PC"]
         self.regEntries = [RegisterEntry(self, reg, 30+30*idx) for idx, reg in enumerate(regs)]
@@ -189,11 +186,7 @@ class SidePanel(wx.Panel):
         wx.StaticText(self, -1, "Status Registers:", pos=(10, 530))
         self.statusRegEntries = [RegisterEntry(self, reg, 550+30*idx) for idx, reg in enumerate(["N", "Z", "C", "V"])]
 
-        for reg in self.statusRegEntries:
-            reg.setValue(random.randint(0, 1) == 1)
-
-        for reg in self.regEntries:
-            reg.setValue(random.randint(0, 9999999999))
+        self.reset()
 
     # Initialize the registers in the visualizer with there actual values
     def setRegs(self, registers: List[int]):
@@ -212,6 +205,13 @@ class SidePanel(wx.Panel):
     def update(self, state: programState.ProgramState):
         self.setRegs(state.registers)
         self.setStatusRegs(state.status)
+
+    def reset(self):
+        for reg in self.statusRegEntries:
+            reg.setValue(False)
+
+        for reg in self.regEntries:
+            reg.setValue(0)
 
 
 # Application Framework
@@ -252,15 +252,15 @@ class MainWindow(wx.Frame):
         self.runTool: wx.ToolBarToolBase = toolbar.AddTool(wx.ID_ANY, "Run", self.icons.run, "Run the program")
         self.Bind(wx.EVT_TOOL, self.OnRun, self.runTool)
         self.debugTool: wx.ToolBarToolBase = toolbar.AddTool(wx.ID_ANY, "Debug",  self.icons.debug, "Debug the program")
-        self.Bind(wx.EVT_TOOL, lambda _: print("debug"), self.debugTool)
+        self.Bind(wx.EVT_TOOL, self.OnDebug, self.debugTool)
         self.stopTool: wx.ToolBarToolBase = toolbar.AddTool(wx.ID_ANY, "Stop",  self.icons.stop, "Stop the program")
         self.Bind(wx.EVT_TOOL, self.OnStop, self.stopTool)
         self.singleStepTool: wx.ToolBarToolBase = toolbar.AddTool(wx.ID_ANY, "Single-step",  self.icons.singleStep, "Single-step the program")
-        self.Bind(wx.EVT_TOOL, lambda _: print("single-step"), self.singleStepTool)
+        self.Bind(wx.EVT_TOOL, self.OnStep, self.singleStepTool)
         self.resumeBreakpointTool: wx.ToolBarToolBase = toolbar.AddTool(wx.ID_ANY, "Resume-to-breakpoint", self.icons.resumeToBreakpoint, "Resume to the next breakpoint")
-        self.Bind(wx.EVT_TOOL, lambda _: print("resume to next breakpoint"), self.resumeBreakpointTool)
+        self.Bind(wx.EVT_TOOL, self.OnResumeBreakpoint, self.resumeBreakpointTool)
         self.resumeTool: wx.ToolBarToolBase = toolbar.AddTool(wx.ID_ANY, "Resume",  self.icons.resume, "Run the rest of the program")
-        self.Bind(wx.EVT_TOOL, lambda _: print("Run rest of program"), self.resumeTool)
+        self.Bind(wx.EVT_TOOL, self.OnResume, self.resumeTool)
 
         self.stopTool.Enable(False)
         self.singleStepTool.Enable(False)
@@ -273,8 +273,10 @@ class MainWindow(wx.Frame):
         self.Bind(wx.EVT_TOOL, lambda _: self.Close(), quitTool)
         toolbar.Realize()
 
+        # run variables
         self.runThread: Optional[threading.Thread] = None
         self.stopFlag = False
+        self.debugState: Optional[programState.ProgramState] = None
 
         # go ahead and display the application
         self.Show()
@@ -358,20 +360,215 @@ class MainWindow(wx.Frame):
             self.stopTool.Enable(False)
             self.GetToolBar().Realize()
 
-        self.console.clear()
+            self.textPanel.textBox.MarkerDeleteAll(MARK_CURRENT_LINE)
 
-        self.runTool.Enable(False)
-        self.debugTool.Enable(False)
-        self.stopTool.Enable(True)
-        self.GetToolBar().Realize()
+        if self.runThread is None:
+            self.console.clear()
 
-        self.runThread = threading.Thread(target=run)
-        self.runThread.setDaemon(True)
-        self.runThread.start()
+            self.runTool.Enable(False)
+            self.debugTool.Enable(False)
+            self.stopTool.Enable(True)
+            self.GetToolBar().Realize()
+
+            self.stopFlag = False
+
+            self.runThread = threading.Thread(target=run)
+            self.runThread.setDaemon(True)
+            self.runThread.start()
+
+    def OnDebug(self, _):
+        def run():
+            file_contents: str = self.textPanel.textBox.GetValue()
+            state = interpreter.parse(self.fileName, file_contents, 1024, "_start")  # TODO get stackSize and start label from main
+            self.sidePanel.update(state)
+
+            lines = file_contents.split('\n')
+
+            while True:
+                if self.stopFlag:
+                    break
+                node: nodes.InstructionNode = state.getInstructionFromMem(state.getReg("PC"))
+                if node.line in breakpoints:
+                    self.debugState = state
+                    self.runThread = None
+
+                    self.sidePanel.update(state)
+                    self.textPanel.markLine(node.line)
+
+                    self.singleStepTool.Enable(True)
+                    self.resumeBreakpointTool.Enable(True)
+                    self.resumeTool.Enable(True)
+                    self.GetToolBar().Realize()
+
+                    return
+                state, success = interpreter.executeInstruction(node, state, self.fileName, lines)
+                if not success:
+                    break
+
+            self.sidePanel.update(state)
+
+            self.runThread = None
+            self.stopFlag = False
+
+            self.runTool.Enable(True)
+            self.debugTool.Enable(True)
+            self.stopTool.Enable(False)
+            self.GetToolBar().Realize()
+
+            self.textPanel.textBox.MarkerDeleteAll(MARK_CURRENT_LINE)
+
+        if self.runThread is None:
+            self.console.clear()
+
+            self.runTool.Enable(False)
+            self.debugTool.Enable(False)
+            self.stopTool.Enable(True)
+            self.GetToolBar().Realize()
+
+            self.stopFlag = False
+
+            self.runThread = threading.Thread(target=run)
+            self.runThread.setDaemon(True)
+            self.runThread.start()
 
     def OnStop(self, _):
         if self.runThread is not None:
             self.stopFlag = True
+        if self.debugState is not None:
+            self.debugState = None
+
+            self.runTool.Enable(True)
+            self.debugTool.Enable(True)
+            self.stopTool.Enable(False)
+            self.singleStepTool.Enable(False)
+            self.resumeBreakpointTool.Enable(False)
+            self.resumeTool.Enable(False)
+            self.GetToolBar().Realize()
+
+            self.textPanel.textBox.MarkerDeleteAll(MARK_CURRENT_LINE)
+
+    def OnStep(self, _):
+        lines = self.textPanel.textBox.GetValue().split('\n')
+
+        node: nodes.InstructionNode = self.debugState.getInstructionFromMem(self.debugState.getReg("PC"))
+        state, success = interpreter.executeInstruction(node, self.debugState, self.fileName, lines)
+
+        self.sidePanel.update(state)
+        nextNode: nodes.InstructionNode = self.debugState.getInstructionFromMem(self.debugState.getReg("PC"))
+        if not isinstance(nextNode, nodes.SystemCall):
+            self.textPanel.markLine(nextNode.line)
+
+        if not success:
+            self.debugState = None
+
+            self.runTool.Enable(True)
+            self.debugTool.Enable(True)
+            self.stopTool.Enable(False)
+            self.singleStepTool.Enable(False)
+            self.resumeBreakpointTool.Enable(False)
+            self.resumeTool.Enable(False)
+            self.GetToolBar().Realize()
+
+            self.textPanel.textBox.MarkerDeleteAll(MARK_CURRENT_LINE)
+
+    def OnResumeBreakpoint(self, _):
+        def run():
+            firstRun = True  # make sure to not block on the same breakpoint right away
+
+            state = self.debugState
+            self.sidePanel.update(state)
+
+            lines = self.textPanel.textBox.GetValue().split('\n')
+
+            while True:
+                if self.stopFlag:
+                    break
+                node: nodes.InstructionNode = state.getInstructionFromMem(state.getReg("PC"))
+                if node.line in breakpoints and not firstRun:
+                    self.debugState = state
+                    self.runThread = None
+
+                    self.sidePanel.update(state)
+                    self.textPanel.markLine(node.line)
+
+                    self.singleStepTool.Enable(True)
+                    self.resumeBreakpointTool.Enable(True)
+                    self.resumeTool.Enable(True)
+                    self.GetToolBar().Realize()
+
+                    return
+                state, success = interpreter.executeInstruction(node, state, self.fileName, lines)
+                firstRun = False
+                if not success:
+                    break
+
+            self.sidePanel.update(state)
+
+            self.runThread = None
+            self.debugState = None
+            self.stopFlag = False
+
+            self.runTool.Enable(True)
+            self.debugTool.Enable(True)
+            self.stopTool.Enable(False)
+            self.singleStepTool.Enable(False)
+            self.resumeBreakpointTool.Enable(False)
+            self.resumeTool.Enable(False)
+            self.GetToolBar().Realize()
+            self.GetToolBar().Realize()
+
+        if self.runThread is None:
+            self.runTool.Enable(False)
+            self.debugTool.Enable(False)
+            self.stopTool.Enable(True)
+            self.GetToolBar().Realize()
+
+            self.stopFlag = False
+
+            self.runThread = threading.Thread(target=run)
+            self.runThread.setDaemon(True)
+            self.runThread.start()
+
+    def OnResume(self, _):
+        def run():
+            state = self.debugState
+            self.sidePanel.update(state)
+
+            lines = self.textPanel.textBox.GetValue().split('\n')
+
+            while True:
+                if self.stopFlag:
+                    break
+                node: nodes.InstructionNode = state.getInstructionFromMem(state.getReg("PC"))
+                state, success = interpreter.executeInstruction(node, state, self.fileName, lines)
+                if not success:
+                    break
+
+            self.sidePanel.update(state)
+
+            self.runThread = None
+            self.stopFlag = False
+            self.debugState = None
+
+            self.runTool.Enable(True)
+            self.debugTool.Enable(True)
+            self.stopTool.Enable(False)
+            self.singleStepTool.Enable(False)
+            self.resumeBreakpointTool.Enable(False)
+            self.resumeTool.Enable(False)
+            self.GetToolBar().Realize()
+
+        if self.runThread is None:
+            self.runTool.Enable(False)
+            self.debugTool.Enable(False)
+            self.stopTool.Enable(True)
+            self.GetToolBar().Realize()
+
+            self.stopFlag = False
+
+            self.runThread = threading.Thread(target=run)
+            self.runThread.setDaemon(True)
+            self.runThread.start()
 
 
 app = wx.App(False)

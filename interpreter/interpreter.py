@@ -43,14 +43,6 @@ def generateStacktrace(state: programState.ProgramState, error: programState.Run
 def executeInstruction(node: nodes.InstructionNode, state: programState.ProgramState, fileName: str, lines: List[str]) -> Tuple[programState.ProgramState, bool]:
     if isinstance(node, nodes.InstructionNode):
         # Execute the instruction
-        # if state.visualizer:
-        #     # TODO check breakpoints
-        #     # TODO update regs when at breakpoint
-        #     # visualizer.setStatusRegs(state.status)
-        #     # visualizer.setRegs(state.registers)
-        #     if not isinstance(node, nodes.SystemCall):
-        #         # TODO mark line (when at breakpoint?)
-        #         pass
         state, err = node.function(state)
 
         # Exception handling
