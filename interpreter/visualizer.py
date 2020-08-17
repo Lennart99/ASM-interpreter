@@ -11,10 +11,14 @@ import programState
 import interpreter
 import nodes
 
+# Breakpoint marker ID
 MARK_BREAKPOINT = 1
+# List of current breakpoints
 breakpoints = []
 
+# Current line marker ID
 MARK_CURRENT_LINE = 2
+
 
 # Font face data depending on OS
 if wx.Platform == '__WXMSW__':
@@ -34,6 +38,19 @@ else:
     lineNumberSize = 10
 
 
+# This event is used to update the current line marking from within the run thread, as the marking can only be updated from the main thread
+EVT_UPDATELINE_ID = wx.NewId()
+
+
+# This event is used to update the current line marking from within the run thread, as the marking can only be updated from the main thread
+class UpdateLineEvent(wx.PyEvent):
+    def __init__(self, line):
+        wx.PyEvent.__init__(self)
+        self.SetEventType(EVT_UPDATELINE_ID)
+        self.currentLine = line
+
+
+# represents a Register in the user interface
 class RegisterEntry:
     def __init__(self, parent: wx.Panel, name: str, y: int):
         # The height of the label is 16 and the height of the text box is 22, this means the labels must be offset by 3 pixels to be centered
@@ -48,6 +65,7 @@ class RegisterEntry:
         self.regBox.SetEditable(False)
 
 
+# Loads all icons for the toolbar
 class Icons:
     def __init__(self):
         self.new = wx.Bitmap(os.path.join("icons", "new.png"))
@@ -64,6 +82,7 @@ class Icons:
         self.stop = wx.Bitmap(os.path.join("icons", "stop.png"))
 
 
+# The panel that shows the text of the application and makes it possible to set breakpoints
 class TextPanel(wx.Panel):
     def __init__(self, parent):
         wx.Panel.__init__(self, parent)
@@ -123,11 +142,14 @@ class TextPanel(wx.Panel):
                 breakpoints.append(lineClicked+1)
             self.textBox.MarkerAdd(lineClicked, MARK_BREAKPOINT)
 
+    # Mark the next line to be executed
     def markLine(self, line: int):
         self.textBox.MarkerDeleteAll(MARK_CURRENT_LINE)
         self.textBox.MarkerAdd(line-1, MARK_CURRENT_LINE)
+        self.textBox.GotoLine(line-1)
 
 
+# This panel shows the console output of the application
 class ConsolePanel(wx.Panel):
     def __init__(self, parent):
         wx.Panel.__init__(self, parent)
@@ -158,6 +180,7 @@ class ConsolePanel(wx.Panel):
         self.textBox.SetEditable(False)
 
 
+# This panel contains the TextPanel and the ConsolePanel and combines these panels into one panel
 class RightPanel(wx.Panel):
     def __init__(self, parent):
         wx.Panel.__init__(self, parent)
@@ -174,6 +197,7 @@ class RightPanel(wx.Panel):
         self.SetSizer(sizer)
 
 
+# This panel contains the Values of the registers
 class SidePanel(wx.Panel):
     def __init__(self, parent):
         wx.Panel.__init__(self, parent)
@@ -214,12 +238,13 @@ class SidePanel(wx.Panel):
             reg.setValue(0)
 
 
-# Application Framework
+# Main application Frame
 class MainWindow(wx.Frame):
     def __init__(self, parent, title):
         # Initialize the application Frame and create the Styled Text Control
         wx.Frame.__init__(self, parent, title=title, size=(1200, 800))
 
+        # show the sidepanel on the left and the combined TextPanel and ConsolePanel on the right
         vertSplitter = wx.SplitterWindow(self)
         self.sidePanel = SidePanel(vertSplitter)
         right = RightPanel(vertSplitter)
@@ -229,6 +254,7 @@ class MainWindow(wx.Frame):
         self.textPanel = right.textPanel
         self.console = right.console
 
+        # set default fileName and default directory
         self.dirName = os.path.dirname(__file__)
         self.fileName = ''
 
@@ -237,7 +263,6 @@ class MainWindow(wx.Frame):
         toolbar: wx.ToolBar = self.CreateToolBar()
         toolbar.SetBackgroundColour('DARKGRAY')
 
-        # tool bindings
         self.newTool = toolbar.AddTool(wx.ID_ANY, "New",  self.icons.new, "Create empty application")
         self.Bind(wx.EVT_TOOL, self.OnNew, self.newTool)
         self.openTool = toolbar.AddTool(wx.ID_ANY, "Open", self.icons.open, "Open file")
@@ -262,13 +287,15 @@ class MainWindow(wx.Frame):
         self.resumeTool: wx.ToolBarToolBase = toolbar.AddTool(wx.ID_ANY, "Resume",  self.icons.resume, "Run the rest of the program")
         self.Bind(wx.EVT_TOOL, self.OnResume, self.resumeTool)
 
-        self.resetTools()
-
         toolbar.AddSeparator()
 
         quitTool = toolbar.AddTool(wx.ID_ANY, "Quit", self.icons.quit, "Quit")
         self.Bind(wx.EVT_TOOL, lambda _: self.Close(), quitTool)
-        toolbar.Realize()
+        # disable some debugging tools
+        self.resetTools()
+
+        # Set up event handler for UpdateLineEvent
+        self.Connect(-1, -1, EVT_UPDATELINE_ID, self.onLineUpdate)
 
         # run variables
         self.runThread: Optional[threading.Thread] = None
@@ -278,6 +305,7 @@ class MainWindow(wx.Frame):
         # go ahead and display the application
         self.Show()
 
+    # reset the Enabled flag on all tools to their default value
     def resetTools(self):
         self.newTool.Enable(True)
         self.openTool.Enable(True)
@@ -294,6 +322,7 @@ class MainWindow(wx.Frame):
 
         self.GetToolBar().Realize()
 
+    # enable or disable the debug tools (single-step and resume)
     def enableDebugTools(self, enable):
         self.singleStepTool.Enable(enable)
         self.resumeBreakpointTool.Enable(enable)
@@ -301,12 +330,14 @@ class MainWindow(wx.Frame):
 
         self.GetToolBar().Realize()
 
+    # enable or disable the run and debug tool
     def enableRunTools(self, enable):
         self.runTool.Enable(enable)
         self.debugTool.Enable(enable)
 
         self.GetToolBar().Realize()
 
+    # enable or disable the file tools (new, open, save, save-as)
     def enableFileTools(self, enable):
         self.newTool.Enable(enable)
         self.openTool.Enable(enable)
@@ -377,6 +408,7 @@ class MainWindow(wx.Frame):
                 f.write(self.textPanel.textBox.GetValue())
         dlg.Destroy()
 
+    # Run tool action
     def OnRun(self, _):
         def run():
             self.textPanel.textBox.SetEditable(False)
@@ -418,6 +450,7 @@ class MainWindow(wx.Frame):
             self.runThread.setDaemon(True)
             self.runThread.start()
 
+    # Debug tool action
     def OnDebug(self, _):
         def run():
             self.textPanel.textBox.SetEditable(False)
@@ -436,7 +469,7 @@ class MainWindow(wx.Frame):
                     self.runThread = None
 
                     self.sidePanel.update(state)
-                    self.textPanel.markLine(node.line)
+                    wx.PostEvent(self, UpdateLineEvent(node.line))
 
                     self.enableDebugTools(True)
 
@@ -469,6 +502,7 @@ class MainWindow(wx.Frame):
             self.runThread.setDaemon(True)
             self.runThread.start()
 
+    # Stop tool action
     def OnStop(self, _):
         if self.runThread is not None:
             self.stopFlag = True
@@ -480,6 +514,7 @@ class MainWindow(wx.Frame):
             self.textPanel.textBox.MarkerDeleteAll(MARK_CURRENT_LINE)
             self.textPanel.textBox.SetEditable(True)
 
+    # Single-step tool action
     def OnStep(self, _):
         lines = self.textPanel.textBox.GetValue().split('\n')
 
@@ -504,6 +539,7 @@ class MainWindow(wx.Frame):
             if not isinstance(nextNode, nodes.SystemCall):
                 self.textPanel.markLine(nextNode.line)
 
+    # ResumeToBreakpoint tool action
     def OnResumeBreakpoint(self, _):
         def run():
             firstRun = True  # make sure to not block on the same breakpoint right away
@@ -521,7 +557,7 @@ class MainWindow(wx.Frame):
                     self.runThread = None
 
                     self.sidePanel.update(state)
-                    self.textPanel.markLine(node.line)
+                    wx.PostEvent(self, UpdateLineEvent(node.line))
 
                     self.enableDebugTools(True)
 
@@ -552,6 +588,7 @@ class MainWindow(wx.Frame):
             self.runThread.setDaemon(True)
             self.runThread.start()
 
+    # Resume tool action
     def OnResume(self, _):
         def run():
             state = self.debugState
@@ -585,6 +622,11 @@ class MainWindow(wx.Frame):
             self.runThread = threading.Thread(target=run)
             self.runThread.setDaemon(True)
             self.runThread.start()
+
+    # Event handler for UpdateLineEvent
+    # This event is used to update the current line marking from within the run thread, as the marking can only be updated from the main thread
+    def onLineUpdate(self, e: UpdateLineEvent):
+        self.textPanel.markLine(e.currentLine)
 
 
 app = wx.App(False)
