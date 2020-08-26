@@ -181,7 +181,6 @@ class ConsolePanel(wx.Panel):
         self.SetBackgroundColour("#FFFFFF")
 
         self.textBox = wx.TextCtrl(self, style=wx.TE_MULTILINE | wx.TE_WORDWRAP | wx.TE_READONLY)
-        # TODO style
         self.textBox.SetBackgroundColour("#000000")
         self.textBox.SetForegroundColour("#FFFFFF")
         self.textBox.SetFont(wx.Font(textSize, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL, False))
