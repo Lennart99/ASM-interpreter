@@ -1,7 +1,7 @@
 import wx
 import wx.stc as stc
 
-from typing import Union, List, Optional
+from typing import Any, Union, List, Optional, Callable
 
 import builtins
 import os
@@ -39,16 +39,15 @@ else:
 
 
 # This event is used to update the current line marking from within the run thread, as the marking can only be updated from the main thread
-EVT_UPDATELINE_ID = wx.NewId()
+EVT_UPDATE_GUI_ID = wx.NewId()
 
 
 # This event is used to update the current line marking from within the run thread, as the marking can only be updated from the main thread
-class UpdateLineEvent(wx.PyEvent):
-    def __init__(self, line):
+class UpdateGUIEvent(wx.PyEvent):
+    def __init__(self, func: Callable[[], Any]):
         wx.PyEvent.__init__(self)
-        self.SetEventType(EVT_UPDATELINE_ID)
-        self.currentLine = line
-
+        self.SetEventType(EVT_UPDATE_GUI_ID)
+        self.func = func
 
 # represents a Register in the user interface
 class RegisterEntry:
@@ -295,7 +294,7 @@ class MainWindow(wx.Frame):
         self.resetTools()
 
         # Set up event handler for UpdateLineEvent
-        self.Connect(-1, -1, EVT_UPDATELINE_ID, self.onLineUpdate)
+        self.Connect(-1, -1, EVT_UPDATE_GUI_ID, self.onGUIUpdate)
 
         # run variables
         self.runThread: Optional[threading.Thread] = None
@@ -415,7 +414,7 @@ class MainWindow(wx.Frame):
 
             file_contents: str = self.textPanel.textBox.GetValue()
             state = interpreter.parse(self.fileName, file_contents, 1024, "_start")  # TODO get stackSize and start label from main
-            self.sidePanel.update(state)
+            wx.PostEvent(self, UpdateGUIEvent(lambda: self.sidePanel.update(state)))
 
             lines = file_contents.split('\n')
 
@@ -427,12 +426,12 @@ class MainWindow(wx.Frame):
                     break
 
             # program has exited
-            self.sidePanel.update(state)
+            wx.PostEvent(self, UpdateGUIEvent(lambda: [
+                self.sidePanel.update(state),
+                self.resetTools()]))
 
             self.runThread = None
             self.stopFlag = False
-
-            self.resetTools()
 
             self.textPanel.textBox.MarkerDeleteAll(MARK_CURRENT_LINE)
             self.textPanel.textBox.SetEditable(True)
@@ -457,7 +456,7 @@ class MainWindow(wx.Frame):
 
             file_contents: str = self.textPanel.textBox.GetValue()
             state = interpreter.parse(self.fileName, file_contents, 1024, "_start")  # TODO get stackSize and start label from main
-            self.sidePanel.update(state)
+            wx.PostEvent(self, UpdateGUIEvent(lambda: self.sidePanel.update(state)))
 
             lines = file_contents.split('\n')
 
@@ -468,10 +467,7 @@ class MainWindow(wx.Frame):
                     self.debugState = state
                     self.runThread = None
 
-                    self.sidePanel.update(state)
-                    wx.PostEvent(self, UpdateLineEvent(node.line))
-
-                    self.enableDebugTools(True)
+                    wx.PostEvent(self, UpdateGUIEvent(lambda: [self.sidePanel.update(state), self.textPanel.markLine(node.line), self.enableDebugTools(True)]))
 
                     return
                 state, success = interpreter.executeInstruction(node, state, self.fileName, lines)
@@ -479,12 +475,10 @@ class MainWindow(wx.Frame):
                     break
 
             # program has exited
-            self.sidePanel.update(state)
+            wx.PostEvent(self, UpdateGUIEvent(lambda: [self.sidePanel.update(state), self.resetTools()]))
 
             self.runThread = None
             self.stopFlag = False
-
-            self.resetTools()
 
             self.textPanel.textBox.MarkerDeleteAll(MARK_CURRENT_LINE)
             self.textPanel.textBox.SetEditable(True)
@@ -545,7 +539,7 @@ class MainWindow(wx.Frame):
             firstRun = True  # make sure to not block on the same breakpoint right away
 
             state = self.debugState
-            self.sidePanel.update(state)
+            wx.PostEvent(self, UpdateGUIEvent(lambda: self.sidePanel.update(state)))
 
             lines = self.textPanel.textBox.GetValue().split('\n')
 
@@ -556,10 +550,7 @@ class MainWindow(wx.Frame):
                     self.debugState = state
                     self.runThread = None
 
-                    self.sidePanel.update(state)
-                    wx.PostEvent(self, UpdateLineEvent(node.line))
-
-                    self.enableDebugTools(True)
+                    wx.PostEvent(self, UpdateGUIEvent(lambda: [self.sidePanel.update(state), self.textPanel.markLine(node.line), self.enableDebugTools(True)]))
 
                     return
                 state, success = interpreter.executeInstruction(node, state, self.fileName, lines)
@@ -568,13 +559,11 @@ class MainWindow(wx.Frame):
                     break
 
             # program has exited
-            self.sidePanel.update(state)
+            wx.PostEvent(self, UpdateGUIEvent(lambda: [self.sidePanel.update(state), self.resetTools()]))
 
             self.runThread = None
             self.debugState = None
             self.stopFlag = False
-
-            self.resetTools()
 
             self.textPanel.textBox.MarkerDeleteAll(MARK_CURRENT_LINE)
             self.textPanel.textBox.SetEditable(True)
@@ -592,7 +581,7 @@ class MainWindow(wx.Frame):
     def OnResume(self, _):
         def run():
             state = self.debugState
-            self.sidePanel.update(state)
+            wx.PostEvent(self, UpdateGUIEvent(lambda: self.sidePanel.update(state)))
 
             lines = self.textPanel.textBox.GetValue().split('\n')
 
@@ -603,13 +592,11 @@ class MainWindow(wx.Frame):
                     break
 
             # program has exited
-            self.sidePanel.update(state)
+            wx.PostEvent(self, UpdateGUIEvent(lambda: [self.sidePanel.update(state), self.resetTools()]))
 
             self.runThread = None
             self.debugState = None
             self.stopFlag = False
-
-            self.resetTools()
 
             self.textPanel.textBox.MarkerDeleteAll(MARK_CURRENT_LINE)
             self.textPanel.textBox.SetEditable(True)
@@ -625,8 +612,8 @@ class MainWindow(wx.Frame):
 
     # Event handler for UpdateLineEvent
     # This event is used to update the current line marking from within the run thread, as the marking can only be updated from the main thread
-    def onLineUpdate(self, e: UpdateLineEvent):
-        self.textPanel.markLine(e.currentLine)
+    def onGUIUpdate(self, e: UpdateGUIEvent):
+        e.func()
 
 
 app = wx.App(False)
