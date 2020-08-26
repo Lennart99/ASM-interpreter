@@ -306,42 +306,42 @@ class MainWindow(wx.Frame):
 
     # reset the Enabled flag on all tools to their default value
     def resetTools(self):
-        self.newTool.Enable(True)
-        self.openTool.Enable(True)
-        self.saveTool.Enable(True)
-        self.saveAsTool.Enable(True)
+        self.GetToolBar().EnableTool(self.newTool.GetId(), True)
+        self.GetToolBar().EnableTool(self.openTool.GetId(), True)
+        self.GetToolBar().EnableTool(self.saveTool.GetId(), True)
+        self.GetToolBar().EnableTool(self.saveAsTool.GetId(), True)
 
-        self.runTool.Enable(True)
-        self.debugTool.Enable(True)
-        self.stopTool.Enable(False)
+        self.GetToolBar().EnableTool(self.runTool.GetId(), True)
+        self.GetToolBar().EnableTool(self.debugTool.GetId(), True)
+        self.GetToolBar().EnableTool(self.stopTool.GetId(), False)
 
-        self.singleStepTool.Enable(False)
-        self.resumeBreakpointTool.Enable(False)
-        self.resumeTool.Enable(False)
+        self.GetToolBar().EnableTool(self.singleStepTool.GetId(), False)
+        self.GetToolBar().EnableTool(self.resumeBreakpointTool.GetId(), False)
+        self.GetToolBar().EnableTool(self.resumeTool.GetId(), False)
 
         self.GetToolBar().Realize()
 
     # enable or disable the debug tools (single-step and resume)
     def enableDebugTools(self, enable):
-        self.singleStepTool.Enable(enable)
-        self.resumeBreakpointTool.Enable(enable)
-        self.resumeTool.Enable(enable)
+        self.GetToolBar().EnableTool(self.singleStepTool.GetId(), enable)
+        self.GetToolBar().EnableTool(self.resumeBreakpointTool.GetId(), enable)
+        self.GetToolBar().EnableTool(self.resumeTool.GetId(), enable)
 
         self.GetToolBar().Realize()
 
     # enable or disable the run and debug tool
     def enableRunTools(self, enable):
-        self.runTool.Enable(enable)
-        self.debugTool.Enable(enable)
+        self.GetToolBar().EnableTool(self.runTool.GetId(), enable)
+        self.GetToolBar().EnableTool(self.debugTool.GetId(), enable)
 
         self.GetToolBar().Realize()
 
     # enable or disable the file tools (new, open, save, save-as)
     def enableFileTools(self, enable):
-        self.newTool.Enable(enable)
-        self.openTool.Enable(enable)
-        self.saveTool.Enable(enable)
-        self.saveAsTool.Enable(enable)
+        self.GetToolBar().EnableTool(self.newTool.GetId(), enable)
+        self.GetToolBar().EnableTool(self.openTool.GetId(), enable)
+        self.GetToolBar().EnableTool(self.saveTool.GetId(), enable)
+        self.GetToolBar().EnableTool(self.saveAsTool.GetId(), enable)
 
         self.GetToolBar().Realize()
 
@@ -426,9 +426,7 @@ class MainWindow(wx.Frame):
                     break
 
             # program has exited
-            wx.PostEvent(self, UpdateGUIEvent(lambda: [
-                self.sidePanel.update(state),
-                self.resetTools()]))
+            wx.PostEvent(self, UpdateGUIEvent(lambda: [self.sidePanel.update(state), self.resetTools()]))
 
             self.runThread = None
             self.stopFlag = False
