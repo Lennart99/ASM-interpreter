@@ -3,9 +3,9 @@ import wx.stc as stc
 
 from typing import Any, Union, List, Optional, Callable
 
-import builtins
 import os
 import threading
+import sys
 
 import programState
 import interpreter
@@ -19,6 +19,9 @@ breakpoints = []
 # Current line marker ID
 MARK_CURRENT_LINE = 2
 
+# TODO get stackSize and start label from main
+stackSize = 32
+startLabel = "_start"
 
 # Font face data depending on OS
 if wx.Platform == '__WXMSW__':
@@ -48,6 +51,7 @@ class UpdateGUIEvent(wx.PyEvent):
         wx.PyEvent.__init__(self)
         self.SetEventType(EVT_UPDATE_GUI_ID)
         self.func = func
+
 
 # represents a Register in the user interface
 class RegisterEntry:
@@ -148,35 +152,47 @@ class TextPanel(wx.Panel):
         self.textBox.GotoLine(line-1)
 
 
+class RedirectText:
+    def __init__(self, textCtrl, stdout):
+        self.out = textCtrl
+        self.stdout = stdout
+
+    def stripColor(self, text: str) -> str:
+        if "\033[" in text:
+            idx = text.index("\033[")
+            if "m" in text[idx+2:idx+5]:
+                # TODO set color in textbox
+                mIdx = text.index("m", idx+2, idx+5)
+                return self.stripColor(text[:idx] + text[mIdx + 1:])
+            else:
+                return self.stripColor(text[:idx] + text[idx + 2:])
+        else:
+            return text
+
+    def write(self, string):
+        self.out.WriteText(self.stripColor(string))
+        self.stdout.write(string)
+
+
 # This panel shows the console output of the application
 class ConsolePanel(wx.Panel):
     def __init__(self, parent):
         wx.Panel.__init__(self, parent)
         self.SetBackgroundColour("#FFFFFF")
 
-        self.textBox = stc.StyledTextCtrl(self, style=wx.TE_MULTILINE | wx.TE_WORDWRAP)
+        self.textBox = wx.TextCtrl(self, style=wx.TE_MULTILINE | wx.TE_WORDWRAP)
         self.textBox.SetEditable(False)
-
-        # setting the style
-        self.textBox.StyleSetSpec(stc.STC_STYLE_DEFAULT, f"fore:#FFFFFF,back:#000000,face:{defaultFont},size:{textSize}")
-        self.textBox.SetSelBackground(True, "#333333")
-        self.textBox.StyleClearAll()  # reset all to be like default
-        self.textBox.SetCaretForeground("#FFFFFF")
+        # TODO style
+        self.textBox.SetBackgroundColour("#000000")
+        self.textBox.SetForegroundColour("#FFFFFF")
+        self.textBox.SetFont(wx.Font(textSize, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL, False))
 
         sizer = wx.GridSizer(rows=1, cols=1, vgap=0, hgap=0)
         sizer.Add(self.textBox, 0, wx.EXPAND)
         self.SetSizer(sizer)
 
-    def append(self, line: str):
-        self.textBox.SetEditable(True)
-        self.textBox.AppendText(line)
-        self.textBox.ScrollToEnd()
-        self.textBox.SetEditable(False)
-
-    def clear(self):
-        self.textBox.SetEditable(True)
-        self.textBox.SetValue("")
-        self.textBox.SetEditable(False)
+        logger = RedirectText(self.textBox, sys.stdout)
+        sys.stdout = logger
 
 
 # This panel contains the TextPanel and the ConsolePanel and combines these panels into one panel
@@ -350,7 +366,6 @@ class MainWindow(wx.Frame):
         # Empty the instance variable for current filename, and the main text box's content
         self.fileName = ""
         self.textPanel.textBox.SetValue("")
-        self.console.clear()
 
         breakpoints.clear()
         self.textPanel.textBox.MarkerDeleteAll(MARK_BREAKPOINT)
@@ -367,7 +382,6 @@ class MainWindow(wx.Frame):
             if os.path.exists(path):
                 with open(path, 'r') as f:
                     self.textPanel.textBox.SetValue(f.read())
-                self.console.clear()
 
                 breakpoints.clear()
                 self.textPanel.textBox.MarkerDeleteAll(MARK_BREAKPOINT)
@@ -413,7 +427,7 @@ class MainWindow(wx.Frame):
             self.textPanel.textBox.SetEditable(False)
 
             file_contents: str = self.textPanel.textBox.GetValue()
-            state = interpreter.parse(self.fileName, file_contents, 1024, "_start")  # TODO get stackSize and start label from main
+            state = interpreter.parse(self.fileName, file_contents, stackSize, startLabel)
             wx.PostEvent(self, UpdateGUIEvent(lambda: self.sidePanel.update(state)))
 
             lines = file_contents.split('\n')
@@ -435,7 +449,6 @@ class MainWindow(wx.Frame):
             self.textPanel.textBox.SetEditable(True)
 
         if self.runThread is None:
-            self.console.clear()
 
             self.stopTool.Enable(True)
             self.enableRunTools(False)
@@ -453,7 +466,7 @@ class MainWindow(wx.Frame):
             self.textPanel.textBox.SetEditable(False)
 
             file_contents: str = self.textPanel.textBox.GetValue()
-            state = interpreter.parse(self.fileName, file_contents, 1024, "_start")  # TODO get stackSize and start label from main
+            state = interpreter.parse(self.fileName, file_contents, stackSize, startLabel)
             wx.PostEvent(self, UpdateGUIEvent(lambda: self.sidePanel.update(state)))
 
             lines = file_contents.split('\n')
@@ -482,7 +495,6 @@ class MainWindow(wx.Frame):
             self.textPanel.textBox.SetEditable(True)
 
         if self.runThread is None:
-            self.console.clear()
 
             self.stopTool.Enable(True)
             self.enableRunTools(False)
@@ -616,42 +628,6 @@ class MainWindow(wx.Frame):
 
 app = wx.App(False)
 frame = MainWindow(None, "ASM debugger (beta)")
-
-# save the old print function to print to the console
-__old_print = builtins.print
-
-
-# Overrides the print function to forward all output to the visualizer
-# printLine:: [any] -> String -> String -> Stream -> void
-def printLine(*args, sep=' ', end='\n', file=None):
-    def stripColor(text: str) -> str:
-        if "\033[" in text:
-            idx = text.index("\033[")
-            if "m" in text[idx+2:idx+5]:
-                mIdx = text.index("m", idx+2, idx+5)
-                return stripColor(text[:idx] + text[mIdx + 1:])
-            else:
-                return stripColor(text[:idx] + text[idx + 2:])
-        else:
-            return text
-
-    __old_print(*args, sep=sep, end=end, file=file)
-
-    if end is None:
-        end = '\n'
-
-    addText = ''
-    if len(args) > 0:
-        addText = str(args[0])
-        for arg in args[1:]:
-            addText += str(sep) + str(arg)
-    addText += str(end)
-
-    frame.console.append(stripColor(addText))
-
-
-# overwrite print function
-builtins.print = printLine
 
 if __name__ == "__main__":
     app.MainLoop()
