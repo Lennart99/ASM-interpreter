@@ -170,7 +170,7 @@ class RedirectText:
             return text
 
     def write(self, string):
-        self.out.WriteText(self.stripColor(string))
+        wx.PostEvent(frame, UpdateGUIEvent(lambda: self.out.WriteText(self.stripColor(string))))
         self.stdout.write(string)
 
 
@@ -180,8 +180,7 @@ class ConsolePanel(wx.Panel):
         wx.Panel.__init__(self, parent)
         self.SetBackgroundColour("#FFFFFF")
 
-        self.textBox = wx.TextCtrl(self, style=wx.TE_MULTILINE | wx.TE_WORDWRAP)
-        self.textBox.SetEditable(False)
+        self.textBox = wx.TextCtrl(self, style=wx.TE_MULTILINE | wx.TE_WORDWRAP | wx.TE_READONLY)
         # TODO style
         self.textBox.SetBackgroundColour("#000000")
         self.textBox.SetForegroundColour("#FFFFFF")
