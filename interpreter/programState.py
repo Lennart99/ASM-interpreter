@@ -93,7 +93,7 @@ class ProgramState:
     # loadRegister:: ProgramState -> int -> int -> String -> RunError
     # bitSize: the number of bits to load, either 32, 16 or 8 bit
     # don't need to copy the ProgramState as setReg does that already
-    def loadRegister(self, address: int, bitSize: int, register: str) -> Union[RunError, None]:
+    def loadRegister(self, address: int, bitSize: int, sign_extend: bool, register: str) -> Union[RunError, None]:
         offset = address & 3
         if bitSize == 32 and offset != 0:
             return RunError("To load a word from memory, the address needs to be a multiple of 4", RunError.ErrorType.Error)
@@ -111,9 +111,15 @@ class ProgramState:
         if bitSize == 32:
             self.setReg(register, word.value)
         elif bitSize == 16:
-            self.setReg(register, (word.value >> (1 - offset) * 16) & 0xFFFF)
+            value = (word.value >> (1 - offset) * 16) & 0xFFFF
+            if sign_extend and ((value & 0b1000_0000_0000_0000) == 0b1000_0000_0000_0000):
+                value |= 0xFFFF_0000  # Set upper half-word when sign bit is set
+            self.setReg(register, value)
         elif bitSize == 8:
-            self.setReg(register, (word.value >> (3 - offset) * 8) & 0xFF)
+            value = (word.value >> (3 - offset) * 8) & 0xFF
+            if sign_extend and ((value & 0b1000_0000) == 0b1000_0000):
+                value |= 0xFFFF_FF00  # Set upper three bytes when sign bit is set
+            self.setReg(register, value)
         else:
             # Invalid bitsize, should never happen
             print("BITSIZE", bitSize)

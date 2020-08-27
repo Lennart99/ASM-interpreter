@@ -11,12 +11,12 @@ from instructionsUtils import generateToFewTokensError, generateUnexpectedTokenE
 
 # decodeMOV:: [Token] -> Node.Section -> (Node, [Token])
 # decode the MOV instruction
-def decodeMOV(tokenList: List[tokens.Token], section: nodes.Node.Section) -> Tuple[nodes.Node, List[tokens.Token]]:
+def decodeMOV(tokenList: List[tokens.Token], section: nodes.Node.Section, invert: bool) -> Tuple[nodes.Node, List[tokens.Token]]:
     if len(tokenList) == 0:
-        return generateToFewTokensError(-1, "MOV instruction"), []
+        return generateToFewTokensError(-1, f"{'MOVN' if invert else 'MOV'} instruction"), []
     dest, *tokenList = tokenList
     if len(tokenList) < 2:
-        return generateToFewTokensError(dest.line, "MOV instruction"), []
+        return generateToFewTokensError(dest.line, f"{'MOVN' if invert else 'MOV'} instruction"), []
     if not isinstance(dest, tokens.Register):
         # Wrong token, generate an error
         return generateUnexpectedTokenError(dest.line, dest.contents, "a register"), advanceToNewline(tokenList)
@@ -26,6 +26,8 @@ def decodeMOV(tokenList: List[tokens.Token], section: nodes.Node.Section) -> Tup
         if isinstance(src, tokens.Register):
             def movReg(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
                 value = state.getReg(src.contents)
+                if invert:
+                    value = value ^ 0xFFFF_FFFF
                 state.setReg(dest.contents, value)
                 return state, None
             return nodes.InstructionNode(section, dest.line, movReg), tokenList
@@ -35,12 +37,67 @@ def decodeMOV(tokenList: List[tokens.Token], section: nodes.Node.Section) -> Tup
                 return generateImmediateOutOfRangeError(src.line, src.value, 0xFF), tokenList
 
             def movImmed(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
-                state.setReg(dest.contents, src.value)
+                if invert:
+                    value = src.value ^ 0xFFFF_FFFF
+                else:
+                    value = src.value
+                state.setReg(dest.contents, value)
                 return state, None
             return nodes.InstructionNode(section, dest.line, movImmed), tokenList
         else:
             # Wrong token, generate an error
             return generateUnexpectedTokenError(src.line, src.contents, "a register or an immediate value"), advanceToNewline(tokenList)
+    else:
+        # Wrong token, generate an error
+        return generateUnexpectedTokenError(separator.line, separator.contents, "','"), advanceToNewline(tokenList)
+
+
+# decodeExtend:: [Token] -> Node.Section -> bool -> bool -> (Node, [Token])
+# decode the SXTH, SXTB, UXTH and UXTB instructions
+def decodeExtend(tokenList: List[tokens.Token], section: nodes.Node.Section, signed: bool, halfWord: bool) -> Tuple[nodes.Node, List[tokens.Token]]:
+    if halfWord:
+        if signed:
+            instrName = "SXTH"
+        else:
+            instrName = "UXTH"
+    else:
+        if signed:
+            instrName = "SXTB"
+        else:
+            instrName = "UXTB"
+    if len(tokenList) == 0:
+        return generateToFewTokensError(-1, f"{instrName} instruction"), []
+    dest, *tokenList = tokenList
+    if len(tokenList) < 2:
+        return generateToFewTokensError(dest.line, f"{instrName} instruction"), []
+    if not isinstance(dest, tokens.Register):
+        # Wrong token, generate an error
+        return generateUnexpectedTokenError(dest.line, dest.contents, "a register"), advanceToNewline(tokenList)
+    separator, *tokenList = tokenList
+    if isinstance(separator, tokens.Separator) and separator.contents == ",":
+        src, *tokenList = tokenList
+        if isinstance(src, tokens.Register):
+            def movReg(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
+                value = state.getReg(src.contents)
+                if halfWord:
+                    if signed:
+                        if (value & 0b1000_0000_0000_0000) == 0b1000_0000_0000_0000:
+                            value |= 0xFFFF_0000  # Set upper half-word when sign bit is set
+                    else:
+                        value &= 0xFFFF
+                else:
+                    if signed:
+                        if (value & 0b1000_0000) == 0b1000_0000:
+                            value |= 0xFFFF_FF00  # Set upper three bytes when sign bit is set
+                    else:
+                        value &= 0xFF
+
+                state.setReg(dest.contents, value)
+                return state, None
+            return nodes.InstructionNode(section, dest.line, movReg), tokenList
+        else:
+            # Wrong token, generate an error
+            return generateUnexpectedTokenError(src.line, src.contents, "a register"), advanceToNewline(tokenList)
     else:
         # Wrong token, generate an error
         return generateUnexpectedTokenError(separator.line, separator.contents, "','"), advanceToNewline(tokenList)
@@ -99,16 +156,19 @@ def decodeBL(tokenList: List[tokens.Token], section: nodes.Node.Section) -> Tupl
 
 # saves one function per instruction to be used to decode that instruction into a Node
 tokenFunctions: Dict[str, Callable[[List[tokens.Token], nodes.Node.Section], Tuple[nodes.Node, List[tokens.Token]]]] = {
-    "MOV": decodeMOV,
-    # decodeLDR expects a int as it's third argument to tell the difference between LDR, LDRH and LDRB
-    "LDR": lambda a, b: instructionsMemory.decodeLDR(a, b, 32),
-    "LDRH": lambda a, b: instructionsMemory.decodeLDR(a, b, 16),
-    "LDRB": lambda a, b: instructionsMemory.decodeLDR(a, b, 8),
+    # decodeMOV has a third argument to tell if the value must be inverted (MOVN)
+    "MOV": lambda a, b: decodeMOV(a, b, False),
+    "MOVN": lambda a, b: decodeMOV(a, b, True),
+    # decodeLDR and decodeSTR expect a int as it's third argument to tell the difference between LDR, LDRH and LDRB
+    # decodeLDR expects a bool as it's forth argument to tell if the value must be sign extended
+    "LDR": lambda a, b: instructionsMemory.decodeLDR(a, b, 32, False),
+    "LDRH": lambda a, b: instructionsMemory.decodeLDR(a, b, 16, False),
+    "LDRB": lambda a, b: instructionsMemory.decodeLDR(a, b, 8, False),
     "STR": lambda a, b: instructionsMemory.decodeSTR(a, b, 32),
     "STRH": lambda a, b: instructionsMemory.decodeSTR(a, b, 16),
     "STRB": lambda a, b: instructionsMemory.decodeSTR(a, b, 8),
-    "LDRSH": None,
-    "LDRSB": None,
+    "LDRSH": lambda a, b: instructionsMemory.decodeLDR(a, b, 16, True),
+    "LDRSB": lambda a, b: instructionsMemory.decodeLDR(a, b, 8, True),
 
     "PUSH": instructionsMemory.decodePUSH,
     "POP": instructionsMemory.decodePOP,
@@ -122,23 +182,23 @@ tokenFunctions: Dict[str, Callable[[List[tokens.Token], nodes.Node.Section], Tup
     "SBC": lambda a, b: instructionsALU.decodeALUInstruction(a, b, instructionsALU.decodeSBC, "SBC"),
     "MUL": None,
 
-    "AND": None,
-    "EOR": None,
-    "ORR": None,
-    "BIC": None,
-    "MOVN": None,
+    "AND": lambda a, b: instructionsALU.decodeALUInstruction(a, b, instructionsALU.decodeAND, "AND"),
+    "EOR": lambda a, b: instructionsALU.decodeALUInstruction(a, b, instructionsALU.decodeEOR, "ERR"),
+    "ORR": lambda a, b: instructionsALU.decodeALUInstruction(a, b, instructionsALU.decodeORR, "ORR"),
+    "BIC": lambda a, b: instructionsALU.decodeALUInstruction(a, b, instructionsALU.decodeBIC, "BIC"),
 
     "LSL": None,
     "LSR": None,
     "ASR": None,
     "ROR": None,
 
-    "SXTH": None,
-    "SXTB": None,
-    "UXTH": None,
-    "UXTB": None,
+    # The third args tells decodeExtend if it is a signed extend
+    "SXTH": lambda a, b: decodeExtend(a, b, True, True),
+    "SXTB": lambda a, b: decodeExtend(a, b, True, False),
+    "UXTH": lambda a, b: decodeExtend(a, b, False, True),
+    "UXTB": lambda a, b: decodeExtend(a, b, False, False),
 
-    "TST": None,
+    "TST": lambda a, b: instructionsALU.decodeALUInstruction(a, b, instructionsALU.decodeTST, "TST"),
     "CMP": lambda a, b: instructionsALU.decodeALUInstruction(a, b, instructionsALU.decodeCMP, "CMP"),
     "CMN": lambda a, b: instructionsALU.decodeALUInstruction(a, b, instructionsALU.decodeCMN, "CMN"),
 

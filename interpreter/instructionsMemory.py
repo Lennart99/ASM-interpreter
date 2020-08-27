@@ -6,10 +6,10 @@ import nodes
 import instructionsUtils
 
 
-# decodeLDR:: [Token] -> Node.Section -> ijt -> (Node, [Token])
+# decodeLDR:: [Token] -> Node.Section -> int -> bool -> (Node, [Token])
 # bitSize: the number ob bits to load, either 32, 16 or 8 bit
 # decode the LDR, LDRH and LDRB instructions
-def decodeLDR(tokenList: List[tokens.Token], section: nodes.Node.Section, bitSize: int) -> Tuple[nodes.Node, List[tokens.Token]]:
+def decodeLDR(tokenList: List[tokens.Token], section: nodes.Node.Section, bitSize: int, sign_extend: bool) -> Tuple[nodes.Node, List[tokens.Token]]:
     if len(tokenList) == 0:
         return instructionsUtils.generateToFewTokensError(-1, "LDR instruction"), []
     dest, *tokenList = tokenList
@@ -21,14 +21,14 @@ def decodeLDR(tokenList: List[tokens.Token], section: nodes.Node.Section, bitSiz
     separator, *tokenList = tokenList
     if isinstance(separator, tokens.Separator) and separator.contents == ",":
         separator, *tokenList = tokenList
-        if isinstance(separator, tokens.LoadImmediateValue):
+        if isinstance(separator, tokens.LoadImmediateValue) and not sign_extend:  # sign extend is not supported for this syntax
             value: int = separator.value & 0xFFFFFFFF
 
             def ldrImmed(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
                 state.setReg(dest.contents, value)
                 return state, None
             return nodes.InstructionNode(section, dest.line, ldrImmed), tokenList
-        elif isinstance(separator, tokens.LoadLabel):
+        elif isinstance(separator, tokens.LoadLabel) and not sign_extend:  # sign extend is not supported for this syntax
             label: tokens.LoadLabel = separator
 
             def ldrLabel(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
@@ -50,7 +50,7 @@ def decodeLDR(tokenList: List[tokens.Token], section: nodes.Node.Section, bitSiz
             if isinstance(separator, tokens.Separator) and separator.contents == "]":
                 def ldrOneReg(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
                     adr = state.getReg(src1.contents)
-                    err: Union[None, programState.RunError] = state.loadRegister(adr, bitSize, dest.contents)
+                    err: Union[None, programState.RunError] = state.loadRegister(adr, bitSize, sign_extend, dest.contents)
                     return state, err
                 return nodes.InstructionNode(section, dest.line, ldrOneReg), tokenList
             elif isinstance(separator, tokens.Separator) and separator.contents == ",":
@@ -63,7 +63,7 @@ def decodeLDR(tokenList: List[tokens.Token], section: nodes.Node.Section, bitSiz
                     def ldrDualReg(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
                         adr1 = state.getReg(src1.contents)
                         adr2 = state.getReg(src2.contents)
-                        err: Union[None, programState.RunError] = state.loadRegister(adr1 + adr2, bitSize, dest.contents)
+                        err: Union[None, programState.RunError] = state.loadRegister(adr1 + adr2, bitSize, sign_extend, dest.contents)
                         return state, err
                     return nodes.InstructionNode(section, dest.line, ldrDualReg), tokenList
                 elif isinstance(src2, tokens.ImmediateValue):
@@ -94,7 +94,7 @@ def decodeLDR(tokenList: List[tokens.Token], section: nodes.Node.Section, bitSiz
 
                     def ldrRegImmed(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
                         adr = state.getReg(src1.contents)
-                        err: Union[None, programState.RunError] = state.loadRegister(adr + value, bitSize, dest.contents)
+                        err: Union[None, programState.RunError] = state.loadRegister(adr + value, bitSize, sign_extend, dest.contents)
                         return state, err
                     return nodes.InstructionNode(section, dest.line, ldrRegImmed), tokenList
                 else:
@@ -288,7 +288,7 @@ def decodePOP(tokenList: List[tokens.Token], section: nodes.Node.Section) -> Tup
         if address > (state.getLabelAddress("__STACKSIZE")) or address < 0:
             return state, programState.RunError("All stack entries have been pop'ed already", programState.RunError.ErrorType.Error)
         for reg in regs:
-            err = state.loadRegister(address, 32, reg)
+            err = state.loadRegister(address, 32, False, reg)
             address += 4
             if err is not None:
                 return state, err

@@ -303,6 +303,138 @@ def decodeADC(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
     return nodes.InstructionNode(section, line, run)
 
 
+# decodeAND:: Node.Section -> int -> String -> Either int String -> Either int String None -> Node
+# Decode the AND instruction
+# This function is called by decodeALUInstruction while decoding the AND instruction
+def decodeAND(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int, str], arg3: Union[int, str, None]) -> nodes.Node:
+    if arg3 is None:
+        # move arg2 to arg3 and copy arg1 to arg2
+        arg3 = arg2
+        arg2 = arg1
+
+    if isinstance(arg3, int):
+        arg3 = arg3 & 0XFFFFFFFF
+        if arg3 > 0xFF:
+            return instructionsUtils.generateImmediateOutOfRangeError(line, arg3, 0xFF)
+
+    def run(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
+        a = state.getReg(arg2)
+        if isinstance(arg3, str):
+            b = state.getReg(arg3)
+        else:
+            b = arg3 & 0XFFFFFFFF
+
+        out = a & b
+
+        n = bool((out >> 31) & 1)
+        z = out == 0
+
+        state.setReg(arg1, out)
+        state.setALUState(programState.StatusRegister(n, z, False, False))
+
+        return state, None
+    return nodes.InstructionNode(section, line, run)
+
+
+# decodeEOR:: Node.Section -> int -> String -> Either int String -> Either int String None -> Node
+# Decode the EOR instruction
+# This function is called by decodeALUInstruction while decoding the EOR instruction
+def decodeEOR(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int, str], arg3: Union[int, str, None]) -> nodes.Node:
+    if arg3 is None:
+        # move arg2 to arg3 and copy arg1 to arg2
+        arg3 = arg2
+        arg2 = arg1
+
+    if isinstance(arg3, int):
+        arg3 = arg3 & 0XFFFFFFFF
+        if arg3 > 0xFF:
+            return instructionsUtils.generateImmediateOutOfRangeError(line, arg3, 0xFF)
+
+    def run(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
+        a = state.getReg(arg2)
+        if isinstance(arg3, str):
+            b = state.getReg(arg3)
+        else:
+            b = arg3 & 0XFFFFFFFF
+
+        out = a ^ b
+
+        n = bool((out >> 31) & 1)
+        z = out == 0
+
+        state.setReg(arg1, out)
+        state.setALUState(programState.StatusRegister(n, z, False, False))
+
+        return state, None
+    return nodes.InstructionNode(section, line, run)
+
+
+# decodeORR:: Node.Section -> int -> String -> Either int String -> Either int String None -> Node
+# Decode the ORR instruction
+# This function is called by decodeALUInstruction while decoding the ORR instruction
+def decodeORR(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int, str], arg3: Union[int, str, None]) -> nodes.Node:
+    if arg3 is None:
+        # move arg2 to arg3 and copy arg1 to arg2
+        arg3 = arg2
+        arg2 = arg1
+
+    if isinstance(arg3, int):
+        arg3 = arg3 & 0XFFFFFFFF
+        if arg3 > 0xFF:
+            return instructionsUtils.generateImmediateOutOfRangeError(line, arg3, 0xFF)
+
+    def run(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
+        a = state.getReg(arg2)
+        if isinstance(arg3, str):
+            b = state.getReg(arg3)
+        else:
+            b = arg3 & 0XFFFFFFFF
+
+        out = a | b
+
+        n = bool((out >> 31) & 1)
+        z = out == 0
+
+        state.setReg(arg1, out)
+        state.setALUState(programState.StatusRegister(n, z, False, False))
+
+        return state, None
+    return nodes.InstructionNode(section, line, run)
+
+
+# decodeBIC:: Node.Section -> int -> String -> Either int String -> Either int String None -> Node
+# Decode the BIC instruction
+# This function is called by decodeALUInstruction while decoding the BIC instruction
+def decodeBIC(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int, str], arg3: Union[int, str, None]) -> nodes.Node:
+    if arg3 is None:
+        # move arg2 to arg3 and copy arg1 to arg2
+        arg3 = arg2
+        arg2 = arg1
+
+    if isinstance(arg3, int):
+        arg3 = arg3 & 0XFFFFFFFF
+        if arg3 > 0xFF:
+            return instructionsUtils.generateImmediateOutOfRangeError(line, arg3, 0xFF)
+
+    def run(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
+        a = state.getReg(arg2)
+        if isinstance(arg3, str):
+            b = state.getReg(arg3)
+        else:
+            b = arg3 & 0XFFFFFFFF
+
+        out = a & (b ^ 0xFFFF_FFFF)  # out = a & ! b
+
+        n = bool((out >> 31) & 1)
+        z = out == 0
+
+        state.setReg(arg1, out)
+        state.setALUState(programState.StatusRegister(n, z, False, False))
+
+        return state, None
+    return nodes.InstructionNode(section, line, run)
+
+
 # decodeCMP:: Node.Section -> int -> String -> Either int String -> Either int String None -> Node
 # Decode the CMP instruction
 # This function is called by decodeALUInstruction while decoding the CMP instruction
@@ -377,6 +509,38 @@ def decodeCMN(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
 
         # state.setReg(arg1, out32)
         state.setALUState(programState.StatusRegister(n, z, c, v))
+
+        return state, None
+    return nodes.InstructionNode(section, line, run)
+
+
+# decodeTST:: Node.Section -> int -> String -> Either int String -> Either int String None -> Node
+# Decode the TST instruction
+# This function is called by decodeALUInstruction while decoding the TST instruction
+def decodeTST(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int, str], arg3: Union[int, str, None]) -> nodes.Node:
+    if arg3 is not None:
+        return instructionsUtils.generateUnexpectedTokenError(line, (", " + arg3) if isinstance(arg3, str) else (', #' + str(arg3)), "End of line")
+
+    if isinstance(arg2, int):
+        arg2 = arg2 & 0XFFFFFFFF
+        # check 8 bits
+        if arg2 > 0xFF:
+            return instructionsUtils.generateImmediateOutOfRangeError(line, arg2, 0xFF)
+
+    def run(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
+        a = state.getReg(arg1)
+        if isinstance(arg2, str):
+            b = state.getReg(arg2)
+        else:
+            b = arg2 & 0XFFFFFFFF
+
+        out = a & b
+
+        n = bool((out >> 31) & 1)
+        z = out == 0
+
+        # state.setReg(arg1, out)
+        state.setALUState(programState.StatusRegister(n, z, False, False))
 
         return state, None
     return nodes.InstructionNode(section, line, run)
