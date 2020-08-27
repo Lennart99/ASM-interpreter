@@ -435,6 +435,157 @@ def decodeBIC(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
     return nodes.InstructionNode(section, line, run)
 
 
+# decodeLSL:: Node.Section -> int -> String -> Either int String -> Either int String None -> Node
+# Decode the LSL instruction
+# This function is called by decodeALUInstruction while decoding the LSL instruction
+def decodeLSL(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int, str], arg3: Union[int, str, None]) -> nodes.Node:
+    if arg3 is None:
+        return instructionsUtils.generateUnexpectedTokenError(line, "End of line", "a register")
+
+    if isinstance(arg3, int):
+        arg3 = arg3 & 0XFFFFFFFF
+        if arg3 > 31:
+            return instructionsUtils.generateImmediateOutOfRangeError(line, arg3, 32)
+
+    def run(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
+        a = state.getReg(arg2)
+        if isinstance(arg3, str):
+            b = state.getReg(arg3)
+            if b > 31:
+                return state, programState.RunError(f"Shift value is out of range: value must be below 32 but is {b}", programState.RunError.ErrorType.Error)
+        else:
+            b = arg3
+
+        out = a << b
+        out32 = out & 0xFFFF_FFFF
+
+        if b == 0:
+            c = state.status.C  # The C flag is unaffected if the shift value is 0 - ARM docs
+        else:
+            c = bool((out >> 32) & 1)  # Get the last bit shifted out
+        n = bool((out32 >> 31) & 1)
+        z = out32 == 0
+
+        state.setReg(arg1, out32)
+        state.setALUState(programState.StatusRegister(n, z, c, False))
+
+        return state, None
+    return nodes.InstructionNode(section, line, run)
+
+
+# decodeLSR:: Node.Section -> int -> String -> Either int String -> Either int String None -> Node
+# Decode the LSR instruction
+# This function is called by decodeALUInstruction while decoding the LSR instruction
+def decodeLSR(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int, str], arg3: Union[int, str, None]) -> nodes.Node:
+    if arg3 is None:
+        return instructionsUtils.generateUnexpectedTokenError(line, "End of line", "a register")
+
+    if isinstance(arg3, int):
+        arg3 = arg3 & 0XFFFFFFFF
+        if arg3 > 32:
+            return instructionsUtils.generateImmediateOutOfRangeError(line, arg3, 33)
+
+    def run(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
+        a = state.getReg(arg2)
+        if isinstance(arg3, str):
+            b = state.getReg(arg3)
+            if b > 32:
+                return state, programState.RunError(f"Shift value is out of range: value must be below 33 but is {b}", programState.RunError.ErrorType.Error)
+        else:
+            b = arg3
+
+        out = a >> b
+        out32 = out & 0xFFFF_FFFF
+
+        if b == 0:
+            c = state.status.C  # The C flag is unaffected if the shift value is 0 - ARM docs
+        else:
+            c = bool((a >> (b-1)) & 1)  # Get last bit shifted out
+        n = bool((out32 >> 31) & 1)
+        z = out32 == 0
+
+        state.setReg(arg1, out32)
+        state.setALUState(programState.StatusRegister(n, z, c, False))
+
+        return state, None
+    return nodes.InstructionNode(section, line, run)
+
+
+# decodeASR:: Node.Section -> int -> String -> Either int String -> Either int String None -> Node
+# Decode the ASR instruction
+# This function is called by decodeALUInstruction while decoding the ASR instruction
+def decodeASR(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int, str], arg3: Union[int, str, None]) -> nodes.Node:
+    if arg3 is None:
+        return instructionsUtils.generateUnexpectedTokenError(line, "End of line", "a register")
+
+    if isinstance(arg3, int):
+        arg3 = arg3 & 0XFFFFFFFF
+        if arg3 > 32:
+            return instructionsUtils.generateImmediateOutOfRangeError(line, arg3, 33)
+
+    def run(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
+        a = state.getReg(arg2)
+        if isinstance(arg3, str):
+            b = state.getReg(arg3)
+            if b > 32:
+                return state, programState.RunError(f"Shift value is out of range: value must be below 33 but is {b}", programState.RunError.ErrorType.Error)
+        else:
+            b = arg3
+
+        out = a >> b
+        out32 = out & 0xFFFF_FFFF
+
+        if ((a >> 31) & 1) == 1:  # sign-extend
+            out32 |= (0xFFFF_FFFF << (32 - b)) & 0xFFFF_FFFF
+
+        if b == 0:
+            c = state.status.C  # The C flag is unaffected if the shift value is 0 - ARM docs
+        else:
+            c = bool((a >> (b-1)) & 1)  # Get last bit shifted out
+
+        n = bool((out32 >> 31) & 1)
+        z = out32 == 0
+
+        state.setReg(arg1, out32)
+        state.setALUState(programState.StatusRegister(n, z, c, False))
+
+        return state, None
+    return nodes.InstructionNode(section, line, run)
+
+
+# decodeROR:: Node.Section -> int -> String -> Either int String -> Either int String None -> Node
+# Decode the ROR instruction
+# This function is called by decodeALUInstruction while decoding the ROR instruction
+def decodeROR(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int, str], arg3: Union[int, str, None]) -> nodes.Node:
+    if arg3 is None:
+        return instructionsUtils.generateUnexpectedTokenError(line, "End of line", "a register")
+
+    def run(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
+        a = state.getReg(arg2)
+        if isinstance(arg3, str):
+            b = state.getReg(arg3)
+        else:
+            b = arg3 & 0XFFFFFFFF
+
+        bMod32 = b & 31
+        out = (a >> bMod32) | (a << (32 - bMod32))
+        out32 = out & 0xFFFF_FFFF
+
+        if b == 0:
+            c = state.status.C  # The C flag is unaffected if the shift value is 0 - ARM docs
+        else:
+            c = bool((a >> (bMod32-1)) & 1)  # Get last bit shifted out
+
+        n = bool((out32 >> 31) & 1)
+        z = out32 == 0
+
+        state.setReg(arg1, out32)
+        state.setALUState(programState.StatusRegister(n, z, c, False))
+
+        return state, None
+    return nodes.InstructionNode(section, line, run)
+
+
 # decodeCMP:: Node.Section -> int -> String -> Either int String -> Either int String None -> Node
 # Decode the CMP instruction
 # This function is called by decodeALUInstruction while decoding the CMP instruction

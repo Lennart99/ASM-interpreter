@@ -187,10 +187,10 @@ tokenFunctions: Dict[str, Callable[[List[tokens.Token], nodes.Node.Section], Tup
     "ORR": lambda a, b: instructionsALU.decodeALUInstruction(a, b, instructionsALU.decodeORR, "ORR"),
     "BIC": lambda a, b: instructionsALU.decodeALUInstruction(a, b, instructionsALU.decodeBIC, "BIC"),
 
-    "LSL": None,
-    "LSR": None,
-    "ASR": None,
-    "ROR": None,
+    "LSL": lambda a, b: instructionsALU.decodeALUInstruction(a, b, instructionsALU.decodeLSL, "LSL"),
+    "LSR": lambda a, b: instructionsALU.decodeALUInstruction(a, b, instructionsALU.decodeLSR, "LSR"),
+    "ASR": lambda a, b: instructionsALU.decodeALUInstruction(a, b, instructionsALU.decodeASR, "ASR"),
+    "ROR": lambda a, b: instructionsALU.decodeALUInstruction(a, b, instructionsALU.decodeROR, "ROR"),
 
     # The third args tells decodeExtend if it is a signed extend
     "SXTH": lambda a, b: decodeExtend(a, b, True, True),
