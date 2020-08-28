@@ -35,7 +35,7 @@ TOKEN_REGEX = re.compile(R_INSTRUCTION +
                          r"(?P<SINGELINECOMMENT>;[^\n]*|//[^\n]*)|"
                          r"(?P<MULTILINECOMMENT>/\*.*?\*/)|"
                          r"(?P<STRINGLITERAL>\".*?\")|"
-                         r"(?P<IGNORE>[ \t]+)|"
+                         r"(?P<IGNORE>[ \t\r]+)|"
                          r"(?P<NEWLINE>\n)|"
                          r"(?P<MISMATCH>.)", re.DOTALL+re.ASCII+re.IGNORECASE)
 

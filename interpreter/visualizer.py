@@ -31,16 +31,19 @@ if wx.Platform == '__WXMSW__':
     # other = 'Comic Sans MS'
     textSize = 10
     lineNumberSize = 8
+    address_margin = 35
 elif wx.Platform == '__WXMAC__':
     defaultFont = 'Arial'
     # other = 'Comic Sans MS'
     textSize = 12
     lineNumberSize = 10
+    address_margin = 50
 else:
     defaultFont = 'Helvetica'
     # other = 'new century schoolbook'
     textSize = 12
     lineNumberSize = 10
+    address_margin = 50
 
 
 # This event is used to update the current line marking from within the run thread, as the marking can only be updated from the main thread
@@ -114,7 +117,7 @@ class TextPanel(wx.Panel):
         self.textBox.SetMarginWidth(MARK_BREAKPOINT, 25)
 
         self.textBox.SetMarginType(MARK_ADDRESS, stc.STC_MARGIN_TEXT)  # line numbers column
-        self.textBox.SetMarginWidth(MARK_ADDRESS, 35)  # width of line numbers column
+        self.textBox.SetMarginWidth(MARK_ADDRESS, address_margin)  # width of line numbers column
         self.textBox.SetMarginSensitive(MARK_ADDRESS, True)
 
         self.textBox.SetMarginType(MARK_CURRENT_LINE, stc.STC_MARGIN_NUMBER)  # line numbers column
@@ -152,6 +155,7 @@ class TextPanel(wx.Panel):
             self.textBox.MarkerAdd(lineClicked, MARK_BREAKPOINT)
 
     def setAddresses(self, state: programState.ProgramState):
+        self.textBox.MarginTextClearAll()
         for entry in enumerate(state.memory):
             idx, node = entry
             if node.line != -1:
@@ -438,7 +442,8 @@ class MainWindow(wx.Frame):
 
             file_contents: str = self.textPanel.textBox.GetValue()
             state = interpreter.parse(self.fileName, file_contents, stackSize, startLabel)
-            wx.PostEvent(self, UpdateGUIEvent(lambda: [self.sidePanel.update(state), self.textPanel.setAddresses(state)]))
+            self.textPanel.setAddresses(state)
+            wx.PostEvent(self, UpdateGUIEvent(lambda: self.sidePanel.update(state)))
 
             lines = file_contents.split('\n')
 
@@ -477,7 +482,8 @@ class MainWindow(wx.Frame):
 
             file_contents: str = self.textPanel.textBox.GetValue()
             state = interpreter.parse(self.fileName, file_contents, stackSize, startLabel)
-            wx.PostEvent(self, UpdateGUIEvent(lambda: [self.sidePanel.update(state), self.textPanel.setAddresses(state)]))
+            self.textPanel.setAddresses(state)
+            wx.PostEvent(self, UpdateGUIEvent(lambda: self.sidePanel.update(state)))
 
             lines = file_contents.split('\n')
 
