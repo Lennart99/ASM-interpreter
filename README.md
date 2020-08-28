@@ -44,6 +44,15 @@ To enable the user to find problems in their code easily, clear errors are throw
 
 Note: to create this image, the stack size has been set as low as 16 bytes
 
+### Printing to the console
+
+Printing to the console is possible by using the subroutines ```print_char``` and ```print_int```:
+
+```bl print_char```
+
+```bl print_int```
+
+
 ### The visualizer
 
 Using the visualizer, the register processor can be viewed easily to make debugging code easier. It is also possible to single-step the program to see exactly when the program broke. The current instruction and its location in the source code is shown to make it easy to find the instruction in the source code.
