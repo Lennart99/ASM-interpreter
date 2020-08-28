@@ -16,8 +16,10 @@ MARK_BREAKPOINT = 1
 # List of current breakpoints
 breakpoints = []
 
+# Address marker ID
+MARK_ADDRESS = 2
 # Current line marker ID
-MARK_CURRENT_LINE = 2
+MARK_CURRENT_LINE = 3
 
 # TODO get stackSize and start label from main
 stackSize = 32
@@ -106,14 +108,18 @@ class TextPanel(wx.Panel):
         # Set margins
         self.textBox.SetMargins(5, 0)  # 5px margin on left inside of text control
 
-        self.textBox.SetMarginType(1, stc.STC_MARGIN_SYMBOL)
-        self.textBox.SetMarginMask(1, 2)  # Could not find how masks work in WX, but this works with MARK_BREAKPOINT = 1
-        self.textBox.SetMarginSensitive(1, True)
-        self.textBox.SetMarginWidth(1, 25)
+        self.textBox.SetMarginType(MARK_BREAKPOINT, stc.STC_MARGIN_SYMBOL)
+        self.textBox.SetMarginMask(MARK_BREAKPOINT, 2)  # Could not find how masks work in WX, but this works with MARK_BREAKPOINT = 1
+        self.textBox.SetMarginSensitive(MARK_BREAKPOINT, True)
+        self.textBox.SetMarginWidth(MARK_BREAKPOINT, 25)
 
-        self.textBox.SetMarginType(2, stc.STC_MARGIN_NUMBER)  # line numbers column
-        self.textBox.SetMarginWidth(2, 25)  # width of line numbers column
-        self.textBox.SetMarginSensitive(2, True)
+        self.textBox.SetMarginType(MARK_ADDRESS, stc.STC_MARGIN_TEXT)  # line numbers column
+        self.textBox.SetMarginWidth(MARK_ADDRESS, 35)  # width of line numbers column
+        self.textBox.SetMarginSensitive(MARK_ADDRESS, True)
+
+        self.textBox.SetMarginType(MARK_CURRENT_LINE, stc.STC_MARGIN_NUMBER)  # line numbers column
+        self.textBox.SetMarginWidth(MARK_CURRENT_LINE, 25)  # width of line numbers column
+        self.textBox.SetMarginSensitive(MARK_CURRENT_LINE, True)
 
         # Set foldSymbols style based off the instance variable self.foldSymbols
         # Like a flattened tree control using circular headers and curved joins
@@ -144,6 +150,12 @@ class TextPanel(wx.Panel):
             if (lineClicked+1) not in breakpoints:
                 breakpoints.append(lineClicked+1)
             self.textBox.MarkerAdd(lineClicked, MARK_BREAKPOINT)
+
+    def setAddresses(self, state: programState.ProgramState):
+        for entry in enumerate(state.memory):
+            idx, node = entry
+            if node.line != -1:
+                self.textBox.MarginSetText(node.line-1, str(idx * 4))
 
     # Mark the next line to be executed
     def markLine(self, line: int):
@@ -426,7 +438,7 @@ class MainWindow(wx.Frame):
 
             file_contents: str = self.textPanel.textBox.GetValue()
             state = interpreter.parse(self.fileName, file_contents, stackSize, startLabel)
-            wx.PostEvent(self, UpdateGUIEvent(lambda: self.sidePanel.update(state)))
+            wx.PostEvent(self, UpdateGUIEvent(lambda: [self.sidePanel.update(state), self.textPanel.setAddresses(state)]))
 
             lines = file_contents.split('\n')
 
@@ -465,7 +477,7 @@ class MainWindow(wx.Frame):
 
             file_contents: str = self.textPanel.textBox.GetValue()
             state = interpreter.parse(self.fileName, file_contents, stackSize, startLabel)
-            wx.PostEvent(self, UpdateGUIEvent(lambda: self.sidePanel.update(state)))
+            wx.PostEvent(self, UpdateGUIEvent(lambda: [self.sidePanel.update(state), self.textPanel.setAddresses(state)]))
 
             lines = file_contents.split('\n')
 
