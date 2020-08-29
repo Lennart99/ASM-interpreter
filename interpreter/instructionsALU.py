@@ -303,6 +303,31 @@ def decodeADC(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
     return nodes.InstructionNode(section, line, run)
 
 
+# decodeMUL:: Node.Section -> int -> String -> Either int String -> Either int String None -> Node
+# Decode the MUL instruction
+# This function is called by decodeALUInstruction while decoding the MUL instruction
+def decodeMUL(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int, str], arg3: Union[int, str, None]) -> nodes.Node:
+    if arg3 is None:
+        return instructionsUtils.generateUnexpectedTokenError(line, "End of line", "a register")
+    if isinstance(arg3, int):
+        return instructionsUtils.generateUnexpectedTokenError(line, f'#{arg3}', "a register")
+
+    def run(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
+        a = state.getReg(arg2)
+        b = state.getReg(arg3)
+
+        out32 = (a * b) & 0xFFFFFFFF
+
+        n = bool((out32 >> 31) & 1)
+        z = out32 == 0
+
+        state.setReg(arg1, out32)
+        state.setALUState(programState.StatusRegister(n, z, state.status.C, state.status.V))
+
+        return state, None
+    return nodes.InstructionNode(section, line, run)
+
+
 # decodeAND:: Node.Section -> int -> String -> Either int String -> Either int String None -> Node
 # Decode the AND instruction
 # This function is called by decodeALUInstruction while decoding the AND instruction

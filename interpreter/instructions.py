@@ -154,6 +154,30 @@ def decodeBL(tokenList: List[tokens.Token], section: nodes.Node.Section) -> Tupl
         return generateUnexpectedTokenError(label.line, label.contents, "a label"), advanceToNewline(tokenList)
 
 
+# decodeBL:: Iterator[tokens.Token] -> Node.Section -> bool -> Node
+# decode the BL instruction
+def decodeBLX(tokenList: List[tokens.Token], section: nodes.Node.Section, link: bool) -> Tuple[nodes.Node, List[tokens.Token]]:
+    if len(tokenList) == 0:
+        return generateToFewTokensError(-1, "BL instruction"), []
+    label, *tokenList = tokenList
+    if isinstance(label, tokens.Register):
+        def branchTo(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
+            if link:
+                # Save return address in LR
+                state.setReg("LR", state.getReg("PC"))
+
+            address: int = state.getReg(label.contents)
+            # Subtract 4 because we will add 4 to the address later in the run loop and we need to start at address and not address+4
+            state.setReg("PC", address - 4)
+            state.hasReturned = False
+            return state, None
+
+        return nodes.InstructionNode(section, label.line, branchTo), tokenList
+    else:
+        # Wrong token, generate an error
+        return generateUnexpectedTokenError(label.line, label.contents, "a label"), advanceToNewline(tokenList)
+
+
 # saves one function per instruction to be used to decode that instruction into a Node
 tokenFunctions: Dict[str, Callable[[List[tokens.Token], nodes.Node.Section], Tuple[nodes.Node, List[tokens.Token]]]] = {
     # decodeMOV has a third argument to tell if the value must be inverted (MOVN)
@@ -180,7 +204,7 @@ tokenFunctions: Dict[str, Callable[[List[tokens.Token], nodes.Node.Section], Tup
     "ADC": lambda a, b: instructionsALU.decodeALUInstruction(a, b, instructionsALU.decodeADC, "ADC"),
     "SUB": lambda a, b: instructionsALU.decodeALUInstruction(a, b, instructionsALU.decodeSUB, "SUB"),
     "SBC": lambda a, b: instructionsALU.decodeALUInstruction(a, b, instructionsALU.decodeSBC, "SBC"),
-    "MUL": None,
+    "MUL": lambda a, b: instructionsALU.decodeALUInstruction(a, b, instructionsALU.decodeMUL, "MUL"),
 
     "AND": lambda a, b: instructionsALU.decodeALUInstruction(a, b, instructionsALU.decodeAND, "AND"),
     "EOR": lambda a, b: instructionsALU.decodeALUInstruction(a, b, instructionsALU.decodeEOR, "ERR"),
@@ -210,8 +234,8 @@ tokenFunctions: Dict[str, Callable[[List[tokens.Token], nodes.Node.Section], Tup
     # to decide if a branch needs to be executed based on the StatusRegister
     "B": lambda a, b: decodeBranch(a, b, lambda status: True),
     "BL": decodeBL,
-    "BX": None,
-    "BLX": None,
+    "BX": lambda a, b: decodeBLX(a, b, False),
+    "BLX": lambda a, b: decodeBLX(a, b, False),
 
     # decodeBranch expects a function as it's third argument
     # to decide if a branch needs to be executed based on the StatusRegister
