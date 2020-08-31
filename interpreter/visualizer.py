@@ -6,6 +6,7 @@ from typing import Any, Union, List, Optional, Callable
 import os
 import threading
 import sys
+import time
 
 import programState
 import interpreter
@@ -188,6 +189,7 @@ class RedirectText:
     def write(self, string):
         wx.PostEvent(frame, UpdateGUIEvent(lambda: self.out.WriteText(self.stripColor(string))))
         self.stdout.write(string)
+        time.sleep(0.001)
 
 
 # This panel shows the console output of the application
