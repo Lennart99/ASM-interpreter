@@ -21,7 +21,7 @@ MARK_ADDRESS = 2
 # Current line marker ID
 MARK_CURRENT_LINE = 3
 
-# TODO get stackSize and start label from main
+# These values are set from the main.py file
 stackSize = 32
 startLabel = "_start"
 

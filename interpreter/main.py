@@ -11,6 +11,9 @@ startLabel = "_start"
 if useGUI:
     import visualizer
 
+    visualizer.startLabel = startLabel
+    visualizer.stackSize = stackSize
+
     visualizer.app.MainLoop()
 else:
     file = open(fileName, "r")
