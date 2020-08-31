@@ -465,7 +465,7 @@ class MainWindow(wx.Frame):
 
         if self.runThread is None:
 
-            self.stopTool.Enable(True)
+            self.GetToolBar().EnableTool(self.stopTool.GetId(), True)
             self.enableRunTools(False)
             self.enableFileTools(False)
 
@@ -512,7 +512,7 @@ class MainWindow(wx.Frame):
 
         if self.runThread is None:
 
-            self.stopTool.Enable(True)
+            self.GetToolBar().EnableTool(self.stopTool.GetId(), True)
             self.enableRunTools(False)
             self.enableFileTools(False)
 
