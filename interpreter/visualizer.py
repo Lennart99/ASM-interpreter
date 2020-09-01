@@ -191,6 +191,9 @@ class RedirectText:
         self.stdout.write(string)
         time.sleep(0.001)
 
+    def flush(self):
+        self.stdout.flush()
+
 
 # This panel shows the console output of the application
 class ConsolePanel(wx.Panel):
