@@ -12,6 +12,10 @@ import programState
 import interpreter
 import nodes
 
+# Fix locale bug
+import locale
+locale.setlocale(locale.LC_ALL, 'C')
+
 # Breakpoint marker ID
 MARK_BREAKPOINT = 1
 # List of current breakpoints
