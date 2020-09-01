@@ -88,7 +88,7 @@ def addSubsequentTokens(tokenList: List[tokens.Token]) -> str:
         if len(tokenlijst) == 0:
             return add
         head, *tail = tokenlijst
-        if head.is_mismatch or tail[0].is_mismatch:
+        if head.is_mismatch or (len(tail) > 0 and tail[0].is_mismatch):
             return addSubsequentTokensRecursive(tail, add + head.contents)
         else:
             return add+head.contents

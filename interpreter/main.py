@@ -22,4 +22,6 @@ else:
     file_contents: str = reduce(lambda X, Y: X + Y, lines)
 
     state = interpreter.parse(fileName, file_contents, stackSize, startLabel)
+    if state is None:
+        exit(-1)
     interpreter.runProgram(state, fileName, lines)

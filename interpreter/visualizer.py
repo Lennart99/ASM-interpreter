@@ -451,20 +451,24 @@ class MainWindow(wx.Frame):
 
             file_contents: str = self.textPanel.textBox.GetValue()
             state = interpreter.parse(self.fileName, file_contents, stackSize, startLabel)
-            self.textPanel.setAddresses(state)
-            wx.PostEvent(self, UpdateGUIEvent(lambda: self.sidePanel.update(state)))
 
-            lines = file_contents.split('\n')
+            if state is not None:
+                self.textPanel.setAddresses(state)
+                wx.PostEvent(self, UpdateGUIEvent(lambda: self.sidePanel.update(state)))
 
-            while True:
-                if self.stopFlag:
-                    break
-                state, success = interpreter.executeInstruction(state.getInstructionFromMem(state.getReg("PC")), state, self.fileName, lines)
-                if not success:
-                    break
+                lines = file_contents.split('\n')
 
-            # program has exited
-            wx.PostEvent(self, UpdateGUIEvent(lambda: [self.sidePanel.update(state), self.resetTools()]))
+                while True:
+                    if self.stopFlag:
+                        break
+                    state, success = interpreter.executeInstruction(state.getInstructionFromMem(state.getReg("PC")), state, self.fileName, lines)
+                    if not success:
+                        break
+
+                # program has exited
+                wx.PostEvent(self, UpdateGUIEvent(lambda: [self.sidePanel.update(state), self.resetTools()]))
+            else:
+                wx.PostEvent(self, UpdateGUIEvent(lambda: self.resetTools()))
 
             self.runThread = None
             self.stopFlag = False
@@ -491,27 +495,30 @@ class MainWindow(wx.Frame):
 
             file_contents: str = self.textPanel.textBox.GetValue()
             state = interpreter.parse(self.fileName, file_contents, stackSize, startLabel)
-            self.textPanel.setAddresses(state)
-            wx.PostEvent(self, UpdateGUIEvent(lambda: self.sidePanel.update(state)))
+            if state is not None:
+                self.textPanel.setAddresses(state)
+                wx.PostEvent(self, UpdateGUIEvent(lambda: self.sidePanel.update(state)))
 
-            lines = file_contents.split('\n')
+                lines = file_contents.split('\n')
 
-            while not self.stopFlag:
-                node: nodes.InstructionNode = state.getInstructionFromMem(state.getReg("PC"))
-                if node.line in breakpoints:
-                    # breakpoint found - save state and enable the single-step and resume tools
-                    self.debugState = state
-                    self.runThread = None
+                while not self.stopFlag:
+                    node: nodes.InstructionNode = state.getInstructionFromMem(state.getReg("PC"))
+                    if node.line in breakpoints:
+                        # breakpoint found - save state and enable the single-step and resume tools
+                        self.debugState = state
+                        self.runThread = None
 
-                    wx.PostEvent(self, UpdateGUIEvent(lambda: [self.sidePanel.update(state), self.textPanel.markLine(node.line), self.enableDebugTools(True)]))
+                        wx.PostEvent(self, UpdateGUIEvent(lambda: [self.sidePanel.update(state), self.textPanel.markLine(node.line), self.enableDebugTools(True)]))
 
-                    return
-                state, success = interpreter.executeInstruction(node, state, self.fileName, lines)
-                if not success:
-                    break
+                        return
+                    state, success = interpreter.executeInstruction(node, state, self.fileName, lines)
+                    if not success:
+                        break
 
-            # program has exited
-            wx.PostEvent(self, UpdateGUIEvent(lambda: [self.sidePanel.update(state), self.resetTools()]))
+                # program has exited
+                wx.PostEvent(self, UpdateGUIEvent(lambda: [self.sidePanel.update(state), self.resetTools()]))
+            else:
+                wx.PostEvent(self, UpdateGUIEvent(lambda: self.resetTools()))
 
             self.runThread = None
             self.stopFlag = False

@@ -21,7 +21,7 @@ def decodeALUInstruction(tokenList: List[tokens.Token], section: nodes.Node.Sect
     if len(tokenList) < 2:
         return instructionsUtils.generateToFewTokensError(arg1.line, instruction + " instruction"), []
     seperator1, arg2, *tokenList = tokenList
-    if len(tokenList) < 4:
+    if len(tokenList) < 2:
         seperator2 = seperator1
         # arg3 does not exist
         arg3 = None

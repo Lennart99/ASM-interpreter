@@ -1,4 +1,4 @@
-from typing import List, Callable, Tuple
+from typing import List, Optional, Tuple
 from functools import reduce
 
 import nodes
@@ -80,16 +80,16 @@ def runProgram(state: programState.ProgramState, fileName: str, lines: List[str]
 
 # parse:: String -> String -> int -> String -> ProgramState
 # calls the parser and the lexer
-def parse(fileName: str, file_contents: str, stackSize: int, startLabel: str) -> programState.ProgramState:
+def parse(fileName: str, file_contents: str, stackSize: int, startLabel: str) -> Optional[programState.ProgramState]:
     loadedTokens = lexer.lexFile(file_contents)
     loadedTokens: List[tokens.Token] = lexer.fixMismatches(loadedTokens, file_contents)
 
     if lexer.printErrors(loadedTokens, fileName):
-        exit(-1)
+        return None
 
     context = asmParser.parse(loadedTokens)
     errCount = asmParser.printErrors(context, fileName)
     if errCount > 0:
-        exit(-1)
+        return None
 
     return programContext.generateProgramState(context, stackSize, startLabel, fileName)
