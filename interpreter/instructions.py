@@ -240,7 +240,7 @@ tokenFunctions: Dict[str, Callable[[List[tokens.Token], nodes.Node.Section], Tup
     # decodeBranch expects a function as it's third argument
     # to decide if a branch needs to be executed based on the StatusRegister
     "BCC": lambda a, b: decodeBranch(a, b, lambda status: not status.C),
-    "BCLO": lambda a, b: decodeBranch(a, b, lambda status: not status.C),
+    "BLO": lambda a, b: decodeBranch(a, b, lambda status: not status.C),
     "BCS": lambda a, b: decodeBranch(a, b, lambda status: status.C),
     "BHS": lambda a, b: decodeBranch(a, b, lambda status: status.C),
     "BEQ": lambda a, b: decodeBranch(a, b, lambda status: status.Z),
