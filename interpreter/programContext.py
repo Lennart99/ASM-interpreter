@@ -27,12 +27,13 @@ class ProgramContext:
 # Note: prints a char to the default output
 def subroutine_print_char(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
     # print char
-    r0 = state.getReg("R0")
+    r0, err = state.getReg("R0")
     print(chr(r0), end='')
     # mov PC, LR
-    lr = state.getReg("LR")
+    lr, _ = state.getReg("LR")
     state.setReg("PC", lr)
-    return state, None
+    state.lowRegDirtyFlags = [True, True, True, True]
+    return state, err
 
 
 # subroutine_print_int:: ProgramState -> ProgramState, Either RunError or None
@@ -40,18 +41,19 @@ def subroutine_print_char(state: programState.ProgramState) -> Tuple[programStat
 # Note: prints an integer to the default output and adds a newline
 def subroutine_print_int(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
     # print char
-    r0 = state.getReg("R0")
+    r0, err = state.getReg("R0")
     print(int(r0), end='\n')
     # mov PC, LR
-    lr = state.getReg("LR")
+    lr, _ = state.getReg("LR")
     state.setReg("PC", lr)
-    return state, None
+    state.lowRegDirtyFlags = [True, True, True, True]
+    return state, err
 
 
 # branchToLabel:: ProgramState -> (ProgramState, Either RunError or None)
 def branchToLabel(state: programState.ProgramState, label: str) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
     # Save return address in LR
-    state.setReg("LR", state.getReg("PC"))
+    state.setReg("LR", state.getReg("PC")[0])
 
     address: Union[int, programState.RunError] = state.getLabelAddress(label)
     if isinstance(address, programState.RunError):

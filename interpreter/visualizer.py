@@ -461,7 +461,7 @@ class MainWindow(wx.Frame):
                 while True:
                     if self.stopFlag:
                         break
-                    state, success = interpreter.executeInstruction(state.getInstructionFromMem(state.getReg("PC")), state, self.fileName, lines)
+                    state, success = interpreter.executeInstruction(state.getInstructionFromMem(state.getReg("PC")[0]), state, self.fileName, lines)
                     if not success:
                         break
 
@@ -502,7 +502,7 @@ class MainWindow(wx.Frame):
                 lines = file_contents.split('\n')
 
                 while not self.stopFlag:
-                    node: nodes.InstructionNode = state.getInstructionFromMem(state.getReg("PC"))
+                    node: nodes.InstructionNode = state.getInstructionFromMem(state.getReg("PC")[0])
                     if node.line in breakpoints:
                         # breakpoint found - save state and enable the single-step and resume tools
                         self.debugState = state
@@ -554,7 +554,7 @@ class MainWindow(wx.Frame):
     def OnStep(self, _):
         lines = self.textPanel.textBox.GetValue().split('\n')
 
-        node: nodes.InstructionNode = self.debugState.getInstructionFromMem(self.debugState.getReg("PC"))
+        node: nodes.InstructionNode = self.debugState.getInstructionFromMem(self.debugState.getReg("PC")[0])
         state, success = interpreter.executeInstruction(node, self.debugState, self.fileName, lines)
 
         self.sidePanel.update(state)
@@ -571,7 +571,7 @@ class MainWindow(wx.Frame):
             self.textPanel.textBox.SetEditable(True)
         else:
             self.debugState = state
-            nextNode: nodes.InstructionNode = self.debugState.getInstructionFromMem(self.debugState.getReg("PC"))
+            nextNode: nodes.InstructionNode = self.debugState.getInstructionFromMem(self.debugState.getReg("PC")[0])
             if not isinstance(nextNode, nodes.SystemCall):
                 self.textPanel.markLine(nextNode.line)
 
@@ -586,7 +586,7 @@ class MainWindow(wx.Frame):
             lines = self.textPanel.textBox.GetValue().split('\n')
 
             while not self.stopFlag:
-                node: nodes.InstructionNode = state.getInstructionFromMem(state.getReg("PC"))
+                node: nodes.InstructionNode = state.getInstructionFromMem(state.getReg("PC")[0])
                 if node.line in breakpoints and not firstRun:
                     # breakpoint found - save state and enable the single-step and resume tools
                     self.debugState = state
@@ -628,7 +628,7 @@ class MainWindow(wx.Frame):
             lines = self.textPanel.textBox.GetValue().split('\n')
 
             while not self.stopFlag:
-                node: nodes.InstructionNode = state.getInstructionFromMem(state.getReg("PC"))
+                node: nodes.InstructionNode = state.getInstructionFromMem(state.getReg("PC")[0])
                 state, success = interpreter.executeInstruction(node, state, self.fileName, lines)
                 if not success:
                     break

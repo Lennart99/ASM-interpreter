@@ -22,7 +22,7 @@ def generateStacktraceElement(state: programState.ProgramState, address: int, fi
 # Generates the stacktrace of an error
 def generateStacktrace(state: programState.ProgramState, error: programState.RunError, fileName: str, lines: List[str]) -> str:
     # Get return addresses from the stack
-    sp: int = state.getReg("SP")
+    sp: int = state.getReg("SP")[0]
     stackSize = state.getLabelAddress("__STACKSIZE")
     stack: List[nodes.Node] = state.memory[sp >> 2:stackSize >> 2]
     callbacks = list(map(lambda n: generateStacktraceElement(state, n.value, fileName, lines), filter(lambda x: isinstance(x, nodes.DataNode) and x.source == "LR", stack)))
@@ -30,9 +30,9 @@ def generateStacktrace(state: programState.ProgramState, error: programState.Run
     # Generate the error
     res = f"\033[31m"  # Red color
     res += "Traceback (most recent call first):\n"
-    res += generateStacktraceElement(state, state.getReg("PC"), fileName, lines) + '\n'
+    res += generateStacktraceElement(state, state.getReg("PC")[0], fileName, lines) + '\n'
     if not state.hasReturned:
-        res += generateStacktraceElement(state, state.getReg("LR"), fileName, lines) + '\n'
+        res += generateStacktraceElement(state, state.getReg("LR")[0], fileName, lines) + '\n'
     if len(callbacks) > 0:
         res += reduce(lambda a, b: a + "\n" + b, callbacks) + '\n'
     res += error.message + '\n'
@@ -56,8 +56,8 @@ def executeInstruction(node: nodes.InstructionNode, state: programState.ProgramS
                 elif isinstance(err, programState.StopProgram):
                     return state, False
         # Set a flag in the ProgramState when a subroutine returned. This way the stacktrace generator knows to not print a stacktrace element for the link register
-        pc = state.getReg("PC")
-        if pc == state.getReg("LR"):
+        pc, _ = state.getReg("PC")
+        if pc == state.getReg("LR")[0]:
             state.hasReturned = True
         # increment the program counter
         state.setReg("PC", pc + 4)
@@ -71,7 +71,7 @@ def executeInstruction(node: nodes.InstructionNode, state: programState.ProgramS
 # runProgram:: ProgramState -> String -> [String] -> ProgramState
 def runProgram(state: programState.ProgramState, fileName: str, lines: List[str]) -> programState.ProgramState:
     while True:
-        state, res = executeInstruction(state.getInstructionFromMem(state.getReg("PC")), state, fileName, lines)
+        state, res = executeInstruction(state.getInstructionFromMem(state.getReg("PC")[0]), state, fileName, lines)
         if not res:
             break
 

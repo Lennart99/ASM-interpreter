@@ -25,11 +25,11 @@ def decodeMOV(tokenList: List[tokens.Token], section: nodes.Node.Section, invert
         src, *tokenList = tokenList
         if isinstance(src, tokens.Register):
             def movReg(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
-                value = state.getReg(src.contents)
+                value, err = state.getReg(src.contents)
                 if invert:
                     value = value ^ 0xFFFF_FFFF
                 state.setReg(dest.contents, value)
-                return state, None
+                return state, err
             return nodes.InstructionNode(section, dest.line, movReg), tokenList
         elif isinstance(src, tokens.ImmediateValue):
             # check 8 bits
@@ -78,7 +78,7 @@ def decodeExtend(tokenList: List[tokens.Token], section: nodes.Node.Section, sig
         src, *tokenList = tokenList
         if isinstance(src, tokens.Register):
             def movReg(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
-                value = state.getReg(src.contents)
+                value, err = state.getReg(src.contents)
                 if halfWord:
                     if signed:
                         if (value & 0b1000_0000_0000_0000) == 0b1000_0000_0000_0000:
@@ -93,7 +93,7 @@ def decodeExtend(tokenList: List[tokens.Token], section: nodes.Node.Section, sig
                         value &= 0xFF
 
                 state.setReg(dest.contents, value)
-                return state, None
+                return state, err
             return nodes.InstructionNode(section, dest.line, movReg), tokenList
         else:
             # Wrong token, generate an error
@@ -136,7 +136,7 @@ def decodeBL(tokenList: List[tokens.Token], section: nodes.Node.Section) -> Tupl
     if isinstance(label, tokens.Label):
         def branchTo(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
             # Save return address in LR
-            pc = state.getReg("PC")
+            pc, _ = state.getReg("PC")
             state.setReg("LR", pc)
 
             address: Union[int, programState.RunError] = state.getLabelAddress(label.contents)

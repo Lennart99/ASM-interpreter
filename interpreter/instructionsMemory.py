@@ -49,9 +49,9 @@ def decodeLDR(tokenList: List[tokens.Token], section: nodes.Node.Section, bitSiz
             separator, *tokenList = tokenList
             if isinstance(separator, tokens.Separator) and separator.contents == "]":
                 def ldrOneReg(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
-                    adr = state.getReg(src1.contents)
+                    adr, loadErr = state.getReg(src1.contents)
                     err: Union[None, programState.RunError] = state.loadRegister(adr, bitSize, sign_extend, dest.contents)
-                    return state, err
+                    return state, loadErr if err is None else err
                 return nodes.InstructionNode(section, dest.line, ldrOneReg), tokenList
             elif isinstance(separator, tokens.Separator) and separator.contents == ",":
                 if len(tokenList) < 2:
@@ -61,10 +61,13 @@ def decodeLDR(tokenList: List[tokens.Token], section: nodes.Node.Section, bitSiz
                     return instructionsUtils.generateUnexpectedTokenError(separator.line, separator.contents, "']'"), instructionsUtils.advanceToNewline(tokenList)
                 if isinstance(src2, tokens.Register):
                     def ldrDualReg(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
-                        adr1 = state.getReg(src1.contents)
-                        adr2 = state.getReg(src2.contents)
+                        adr1, loadErr = state.getReg(src1.contents)
+                        if loadErr is None:
+                            adr2, loadErr = state.getReg(src2.contents)
+                        else:
+                            adr2, _ = state.getReg(src2.contents)
                         err: Union[None, programState.RunError] = state.loadRegister(adr1 + adr2, bitSize, sign_extend, dest.contents)
-                        return state, err
+                        return state, loadErr if err is None else err
                     return nodes.InstructionNode(section, dest.line, ldrDualReg), tokenList
                 elif isinstance(src2, tokens.ImmediateValue):
                     src2: tokens.ImmediateValue = src2
@@ -93,9 +96,9 @@ def decodeLDR(tokenList: List[tokens.Token], section: nodes.Node.Section, bitSiz
                                 value *= 2
 
                     def ldrRegImmed(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
-                        adr = state.getReg(src1.contents)
+                        adr, loadErr = state.getReg(src1.contents)
                         err: Union[None, programState.RunError] = state.loadRegister(adr + value, bitSize, sign_extend, dest.contents)
-                        return state, err
+                        return state, loadErr if err is None else err
                     return nodes.InstructionNode(section, dest.line, ldrRegImmed), tokenList
                 else:
                     # Wrong token, generate an error
@@ -136,9 +139,9 @@ def decodeSTR(tokenList: List[tokens.Token], section: nodes.Node.Section, bitSiz
             separator, *tokenList = tokenList
             if isinstance(separator, tokens.Separator) and separator.contents == "]":
                 def strOneReg(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
-                    adr = state.getReg(dest1.contents)
+                    adr, err = state.getReg(dest1.contents)
                     newState: Union[None, programState.RunError] = state.storeRegister(adr, src.contents, bitSize)
-                    return state, newState
+                    return state, err if newState is None else newState
                 return nodes.InstructionNode(section, src.line, strOneReg), tokenList
             elif isinstance(separator, tokens.Separator) and separator.contents == ",":
                 if len(tokenList) < 2:
@@ -148,10 +151,13 @@ def decodeSTR(tokenList: List[tokens.Token], section: nodes.Node.Section, bitSiz
                     return instructionsUtils.generateUnexpectedTokenError(separator.line, separator.contents, "']'"), instructionsUtils.advanceToNewline(tokenList)
                 if isinstance(dest2, tokens.Register):
                     def strDualReg(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
-                        adr1 = state.getReg(dest1.contents)
-                        adr2 = state.getReg(dest2.contents)
+                        adr1, err = state.getReg(dest1.contents)
+                        if err is None:
+                            adr2, err = state.getReg(dest2.contents)
+                        else:
+                            adr2, _ = state.getReg(dest2.contents)
                         newState: Union[None, programState.RunError] = state.storeRegister(adr1 + adr2, src.contents, bitSize)
-                        return state, newState
+                        return state, err if newState is None else newState
                     return nodes.InstructionNode(section, src.line, strDualReg), tokenList
                 elif isinstance(dest2, tokens.ImmediateValue):
                     dest2: tokens.ImmediateValue = dest2
@@ -180,9 +186,9 @@ def decodeSTR(tokenList: List[tokens.Token], section: nodes.Node.Section, bitSiz
                                 value *= 2
 
                     def strRegImmed(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
-                        adr = state.getReg(dest1.contents)
+                        adr, err = state.getReg(dest1.contents)
                         newState: Union[None, programState.RunError] = state.storeRegister(adr + value, src.contents, bitSize)
-                        return state, newState
+                        return state, err if newState is None else newState
                     return nodes.InstructionNode(section, src.line, strRegImmed), tokenList
                 else:
                     # Wrong token, generate an error
@@ -251,7 +257,7 @@ def decodePUSH(tokenList: List[tokens.Token], section: nodes.Node.Section) -> Tu
             return state, None
         # head, *tail = registers
 
-        address = state.getReg("SP")
+        address, _ = state.getReg("SP")
         # check address is in 0...stacksize
         if address > (state.getLabelAddress("__STACKSIZE")) or address < 0:
             return state, programState.RunError("Stack overflow", programState.RunError.ErrorType.Error)
@@ -283,7 +289,7 @@ def decodePOP(tokenList: List[tokens.Token], section: nodes.Node.Section) -> Tup
             return state, None
         # head, *tail = registers
 
-        address = state.getReg("SP")
+        address, _ = state.getReg("SP")
         # check address is in 0...stacksize
         if address > (state.getLabelAddress("__STACKSIZE")) or address < 0:
             return state, programState.RunError("All stack entries have been pop'ed already", programState.RunError.ErrorType.Error)

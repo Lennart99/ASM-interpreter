@@ -92,9 +92,12 @@ def decodeSUB(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
                 return instructionsUtils.generateImmediateOutOfRangeError(line, arg3, 0b0111)
 
     def run(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
-        a = state.getReg(arg2)
+        a, err = state.getReg(arg2)
         if isinstance(arg3, str):
-            b = state.getReg(arg3)
+            if err is None:
+                b, err = state.getReg(arg3)
+            else:
+                b, _ = state.getReg(arg3)
         else:
             b = arg3 & 0XFFFFFFFF
 
@@ -114,7 +117,7 @@ def decodeSUB(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
         state.setReg(arg1, out32)
         state.setALUState(programState.StatusRegister(n, z, c, v))
 
-        return state, None
+        return state, err
     return nodes.InstructionNode(section, line, run)
 
 
@@ -147,9 +150,12 @@ def decodeSBC(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
                 return instructionsUtils.generateImmediateOutOfRangeError(line, arg3, 0b0111)
 
     def run(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
-        a = state.getReg(arg2)
+        a, err = state.getReg(arg2)
         if isinstance(arg3, str):
-            b = state.getReg(arg3)
+            if err is None:
+                b, err = state.getReg(arg3)
+            else:
+                b, _ = state.getReg(arg3)
         else:
             b = arg3
 
@@ -173,7 +179,7 @@ def decodeSBC(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
         state.setReg(arg1, out32)
         state.setALUState(programState.StatusRegister(n, z, c, v))
 
-        return state, None
+        return state, err
     return nodes.InstructionNode(section, line, run)
 
 
@@ -213,9 +219,12 @@ def decodeADD(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
                 return instructionsUtils.generateImmediateOutOfRangeError(line, arg3, 0b0111)
 
     def run(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
-        a = state.getReg(arg2)
+        a, err = state.getReg(arg2)
         if isinstance(arg3, str):
-            b = state.getReg(arg3)
+            if err is None:
+                b, err = state.getReg(arg3)
+            else:
+                b, _ = state.getReg(arg3)
         else:
             b = arg3 & 0XFFFFFFFF
 
@@ -234,7 +243,7 @@ def decodeADD(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
         state.setReg(arg1, out32)
         state.setALUState(programState.StatusRegister(n, z, c, v))
 
-        return state, None
+        return state, err
     return nodes.InstructionNode(section, line, run)
 
 
@@ -274,9 +283,12 @@ def decodeADC(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
                 return instructionsUtils.generateImmediateOutOfRangeError(line, arg3, 0b0111)
 
     def run(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
-        a = state.getReg(arg2)
+        a, err = state.getReg(arg2)
         if isinstance(arg3, str):
-            b = state.getReg(arg3)
+            if err is None:
+                b, err = state.getReg(arg3)
+            else:
+                b, _ = state.getReg(arg3)
         else:
             b = arg3 & 0XFFFFFFFF
 
@@ -299,7 +311,7 @@ def decodeADC(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
         state.setReg(arg1, out32)
         state.setALUState(programState.StatusRegister(n, z, c, v))
 
-        return state, None
+        return state, err
     return nodes.InstructionNode(section, line, run)
 
 
@@ -343,9 +355,12 @@ def decodeAND(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
             return instructionsUtils.generateImmediateOutOfRangeError(line, arg3, 0xFF)
 
     def run(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
-        a = state.getReg(arg2)
+        a, err = state.getReg(arg2)
         if isinstance(arg3, str):
-            b = state.getReg(arg3)
+            if err is None:
+                b, err = state.getReg(arg3)
+            else:
+                b, _ = state.getReg(arg3)
         else:
             b = arg3 & 0XFFFFFFFF
 
@@ -357,7 +372,7 @@ def decodeAND(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
         state.setReg(arg1, out)
         state.setALUState(programState.StatusRegister(n, z, False, False))
 
-        return state, None
+        return state, err
     return nodes.InstructionNode(section, line, run)
 
 
@@ -376,9 +391,12 @@ def decodeEOR(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
             return instructionsUtils.generateImmediateOutOfRangeError(line, arg3, 0xFF)
 
     def run(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
-        a = state.getReg(arg2)
+        a, err = state.getReg(arg2)
         if isinstance(arg3, str):
-            b = state.getReg(arg3)
+            if err is None:
+                b, err = state.getReg(arg3)
+            else:
+                b, _ = state.getReg(arg3)
         else:
             b = arg3 & 0XFFFFFFFF
 
@@ -390,7 +408,7 @@ def decodeEOR(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
         state.setReg(arg1, out)
         state.setALUState(programState.StatusRegister(n, z, False, False))
 
-        return state, None
+        return state, err
     return nodes.InstructionNode(section, line, run)
 
 
@@ -409,9 +427,12 @@ def decodeORR(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
             return instructionsUtils.generateImmediateOutOfRangeError(line, arg3, 0xFF)
 
     def run(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
-        a = state.getReg(arg2)
+        a, err = state.getReg(arg2)
         if isinstance(arg3, str):
-            b = state.getReg(arg3)
+            if err is None:
+                b, err = state.getReg(arg3)
+            else:
+                b, _ = state.getReg(arg3)
         else:
             b = arg3 & 0XFFFFFFFF
 
@@ -423,7 +444,7 @@ def decodeORR(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
         state.setReg(arg1, out)
         state.setALUState(programState.StatusRegister(n, z, False, False))
 
-        return state, None
+        return state, err
     return nodes.InstructionNode(section, line, run)
 
 
@@ -442,9 +463,12 @@ def decodeBIC(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
             return instructionsUtils.generateImmediateOutOfRangeError(line, arg3, 0xFF)
 
     def run(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
-        a = state.getReg(arg2)
+        a, err = state.getReg(arg2)
         if isinstance(arg3, str):
-            b = state.getReg(arg3)
+            if err is None:
+                b, err = state.getReg(arg3)
+            else:
+                b, _ = state.getReg(arg3)
         else:
             b = arg3 & 0XFFFFFFFF
 
@@ -456,7 +480,7 @@ def decodeBIC(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
         state.setReg(arg1, out)
         state.setALUState(programState.StatusRegister(n, z, False, False))
 
-        return state, None
+        return state, err
     return nodes.InstructionNode(section, line, run)
 
 
@@ -473,9 +497,13 @@ def decodeLSL(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
             return instructionsUtils.generateImmediateOutOfRangeError(line, arg3, 32)
 
     def run(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
-        a = state.getReg(arg2)
+        a, err = state.getReg(arg2)
         if isinstance(arg3, str):
-            b = state.getReg(arg3)
+            if err is None:
+                b, err = state.getReg(arg3)
+            else:
+                b, _ = state.getReg(arg3)
+
             if b > 31:
                 return state, programState.RunError(f"Shift value is out of range: value must be below 32 but is {b}", programState.RunError.ErrorType.Error)
         else:
@@ -494,7 +522,7 @@ def decodeLSL(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
         state.setReg(arg1, out32)
         state.setALUState(programState.StatusRegister(n, z, c, False))
 
-        return state, None
+        return state, err
     return nodes.InstructionNode(section, line, run)
 
 
@@ -511,9 +539,13 @@ def decodeLSR(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
             return instructionsUtils.generateImmediateOutOfRangeError(line, arg3, 33)
 
     def run(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
-        a = state.getReg(arg2)
+        a, err = state.getReg(arg2)
         if isinstance(arg3, str):
-            b = state.getReg(arg3)
+            if err is None:
+                b, err = state.getReg(arg3)
+            else:
+                b, _ = state.getReg(arg3)
+
             if b > 32:
                 return state, programState.RunError(f"Shift value is out of range: value must be below 33 but is {b}", programState.RunError.ErrorType.Error)
         else:
@@ -532,7 +564,7 @@ def decodeLSR(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
         state.setReg(arg1, out32)
         state.setALUState(programState.StatusRegister(n, z, c, False))
 
-        return state, None
+        return state, err
     return nodes.InstructionNode(section, line, run)
 
 
@@ -549,9 +581,13 @@ def decodeASR(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
             return instructionsUtils.generateImmediateOutOfRangeError(line, arg3, 33)
 
     def run(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
-        a = state.getReg(arg2)
+        a, err = state.getReg(arg2)
         if isinstance(arg3, str):
-            b = state.getReg(arg3)
+            if err is None:
+                b, err = state.getReg(arg3)
+            else:
+                b, _ = state.getReg(arg3)
+
             if b > 32:
                 return state, programState.RunError(f"Shift value is out of range: value must be below 33 but is {b}", programState.RunError.ErrorType.Error)
         else:
@@ -574,7 +610,7 @@ def decodeASR(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
         state.setReg(arg1, out32)
         state.setALUState(programState.StatusRegister(n, z, c, False))
 
-        return state, None
+        return state, err
     return nodes.InstructionNode(section, line, run)
 
 
@@ -586,9 +622,12 @@ def decodeROR(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
         return instructionsUtils.generateUnexpectedTokenError(line, "End of line", "a register")
 
     def run(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
-        a = state.getReg(arg2)
+        a, err = state.getReg(arg2)
         if isinstance(arg3, str):
-            b = state.getReg(arg3)
+            if err is None:
+                b, err = state.getReg(arg3)
+            else:
+                b, _ = state.getReg(arg3)
         else:
             b = arg3 & 0XFFFFFFFF
 
@@ -607,7 +646,7 @@ def decodeROR(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
         state.setReg(arg1, out32)
         state.setALUState(programState.StatusRegister(n, z, c, False))
 
-        return state, None
+        return state, err
     return nodes.InstructionNode(section, line, run)
 
 
@@ -625,9 +664,12 @@ def decodeCMP(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
             return instructionsUtils.generateImmediateOutOfRangeError(line, arg2, 0xFF)
 
     def run(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
-        a = state.getReg(arg1)
+        a, err = state.getReg(arg1)
         if isinstance(arg2, str):
-            b = state.getReg(arg2)
+            if err is None:
+                b, err = state.getReg(arg2)
+            else:
+                b, _ = state.getReg(arg2)
         else:
             b = arg2 & 0XFFFFFFFF
 
@@ -647,7 +689,7 @@ def decodeCMP(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
         # state.setReg(arg1, out32)
         state.setALUState(programState.StatusRegister(n, z, c, v))
 
-        return state, None
+        return state, err
     return nodes.InstructionNode(section, line, run)
 
 
@@ -665,9 +707,12 @@ def decodeCMN(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
             return instructionsUtils.generateImmediateOutOfRangeError(line, arg2, 0xFF)
 
     def run(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
-        a = state.getReg(arg1)
+        a, err = state.getReg(arg1)
         if isinstance(arg2, str):
-            b = state.getReg(arg2)
+            if err is None:
+                b, err = state.getReg(arg2)
+            else:
+                b, _ = state.getReg(arg2)
         else:
             b = arg2 & 0XFFFFFFFF
 
@@ -704,9 +749,12 @@ def decodeTST(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
             return instructionsUtils.generateImmediateOutOfRangeError(line, arg2, 0xFF)
 
     def run(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
-        a = state.getReg(arg1)
+        a, err = state.getReg(arg1)
         if isinstance(arg2, str):
-            b = state.getReg(arg2)
+            if err is None:
+                b, err = state.getReg(arg2)
+            else:
+                b, _ = state.getReg(arg2)
         else:
             b = arg2 & 0XFFFFFFFF
 

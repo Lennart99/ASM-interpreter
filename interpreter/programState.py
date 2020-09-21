@@ -68,6 +68,7 @@ class ProgramState:
         self.labels: Dict[str, nodes.Label] = labels
         self.fileName = file
         self.hasReturned = True
+        self.lowRegDirtyFlags = [False, False, False, False]
 
     def __str__(self) -> str:
         return "{}({}, {})".format(type(self).__name__, self.registers, self.status)
@@ -78,12 +79,16 @@ class ProgramState:
     # setReg:: ProgramState -> str -> int -> None
     def setReg(self, name: str, value: int):
         regID: int = regToID(name)
+        if regID < 4:
+            self.lowRegDirtyFlags[regID] = False
         self.registers[regID] = value
 
     # setReg:: ProgramState -> str -> int
-    def getReg(self, name: str) -> int:
+    def getReg(self, name: str) -> Tuple[int, Union[RunError, None]]:
         regID: int = regToID(name)
-        return self.registers[regID]
+        if regID < 4 and self.lowRegDirtyFlags[regID]:
+            return self.registers[regID], RunError("You are reading the value of a low register when it's value is undefined", RunError.ErrorType.Warning)
+        return self.registers[regID], None
 
     # setALUState:: ProgramState -> StatusRegister -> None
     # set the status register
@@ -150,7 +155,7 @@ class ProgramState:
         elif bitSize == 16 and (address & 1) != 0:
             return RunError("To store a half-word in memory, the address needs to be a multiple of 2", RunError.ErrorType.Error)
 
-        value = self.getReg(register)
+        value, err = self.getReg(register)
         internal_address = address >> 2
         # check address is in range
         if internal_address < 0 or internal_address >= len(self.memory):
@@ -166,18 +171,18 @@ class ProgramState:
                 return RunError("It is not possible to change part of the contents of an instruction", RunError.ErrorType.Error)
         if bitSize == 32:
             self.memory[internal_address] = nodes.DataNode(value, register)
-            return None
+            return err
         elif bitSize == 16:
             self.memory[internal_address] = nodes.DataNode(
                 ((value & 0xFFFF) << ((2 - offset) * 8)) |
                 (word.value & (0xFFFF << offset * 8)), register)
-            return None
+            return err
         elif bitSize == 8:
             self.memory[internal_address] = nodes.DataNode((
                 ((value & 0xFF) << ((3 - offset) * 8)) |
                 (word.value & (0xFFFFFF00FFFFFF >> offset * 8))
             ) & 0xFFFFFFFF, register)
-            return None
+            return err
         else:
             # Invalid bitsize, should never happen
             return RunError("Invalid bitsize", RunError.ErrorType.Error)
