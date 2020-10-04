@@ -63,9 +63,9 @@ Using the visualizer, the register processor can be viewed easily to make debugg
 
 The icons for New, Open, Save and Save As have been sourced from here: https://findicons.com/pack/566/isimple_system
 
-# Installing
+## Installing
 
-## Windows
+### Windows
 
 1. Installeer **python 3** en **git** als je dit nog niet gedaan hebt
 2. Voeg python toe aan path als je dit nog niet gedaan hebt: https://datatofish.com/add-python-to-windows-path/
@@ -73,7 +73,7 @@ The icons for New, Open, Save and Save As have been sourced from here: https://f
 4. Voer het commando ```git clone https://github.com/Lennart99/ASM-interpreter.git``` uit om de git repository te clonen
 5. Je kan nu de interpreter uitvoeren door ```python main.py``` uit te voeren in de interpreter folder van de git repository
 
-## Linux
+### Linux
 
 1. Installeer **git** als je dit nog niet gedaan hebt
 2. Voer het commando ```git clone https://github.com/Lennart99/ASM-interpreter.git``` uit om de git repository te clonen
