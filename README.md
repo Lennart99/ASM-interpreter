@@ -34,7 +34,7 @@ To use the Interpreter, The settings in the main.py file must be changed:
 - Change the string after fileName to the name of the file you want to run the interpreter with.
 - By changing useGUI to False, the visualizer can be disabled entirely. this is useful when it is not needed because the program will run faster without the visualizer.
 - The stack size can be changed by changing the number after stackSize. The default setting is 0x40, which is 64 byes. Changing it to 0x400 will result in a stack of 1 KB.
-- The interpreter needs to know what subroutine to call first. This can be set with the startLabel variable. The default value is '_start'
+- The interpreter needs to know what subroutine to call first. This can be set with the startLabel variable. The default value is '\_start'
 
 ### error detection
 
@@ -62,3 +62,20 @@ Using the visualizer, the register processor can be viewed easily to make debugg
 
 
 The icons for New, Open, Save and Save As have been sourced from here: https://findicons.com/pack/566/isimple_system
+
+# Installing
+
+## Windows
+
+1. Installeer **python 3** en **git** als je dit nog niet gedaan hebt
+2. Voeg python toe aan path als je dit nog niet gedaan hebt: https://datatofish.com/add-python-to-windows-path/
+3. Voer het commando ```pip3 install wxpython``` uit als admin
+4. Voer het commando ```git clone https://github.com/Lennart99/ASM-interpreter.git``` uit om de git repository te clonen
+5. Je kan nu de interpreter uitvoeren door ```python main.py``` uit te voeren in de interpreter folder van de git repository
+
+## Linux
+
+1. Installeer **git** als je dit nog niet gedaan hebt
+2. Voer het commando ```git clone https://github.com/Lennart99/ASM-interpreter.git``` uit om de git repository te clonen
+3. Voer het commando ```sudo sh install.sh``` uit in de cloned git repository
+4. Je kan nu de interpreter uitvoeren door ```python3 main.py``` uit te voeren in de interpreter folder van de git repository
