@@ -664,7 +664,7 @@ class MainWindow(wx.Frame):
 
 
 app = wx.App(False)
-frame = MainWindow(None, "ASM debugger (beta)")
+frame = MainWindow(None, "ASM debugger")
 
 if __name__ == "__main__":
     app.MainLoop()
