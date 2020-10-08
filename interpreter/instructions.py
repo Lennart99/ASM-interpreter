@@ -164,13 +164,13 @@ def decodeBLX(tokenList: List[tokens.Token], section: nodes.Node.Section, link: 
         def branchTo(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
             if link:
                 # Save return address in LR
-                state.setReg("LR", state.getReg("PC"))
+                state.setReg("LR", state.getReg("PC")[0])
 
-            address: int = state.getReg(label.contents)
+            address, err = state.getReg(label.contents)
             # Subtract 4 because we will add 4 to the address later in the run loop and we need to start at address and not address+4
             state.setReg("PC", address - 4)
             state.hasReturned = False
-            return state, None
+            return state, err
 
         return nodes.InstructionNode(section, label.line, branchTo), tokenList
     else:

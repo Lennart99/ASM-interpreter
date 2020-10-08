@@ -325,8 +325,11 @@ def decodeMUL(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
         return instructionsUtils.generateUnexpectedTokenError(line, f'#{arg3}', "a register")
 
     def run(state: programState.ProgramState) -> Tuple[programState.ProgramState, Union[programState.RunError, None]]:
-        a = state.getReg(arg2)
-        b = state.getReg(arg3)
+        a, err = state.getReg(arg2)
+        if err is None:
+            b, err = state.getReg(arg3)
+        else:
+            b, _ = state.getReg(arg3)
 
         out32 = (a * b) & 0xFFFFFFFF
 
@@ -336,7 +339,7 @@ def decodeMUL(section: nodes.Node.Section, line: int, arg1: str, arg2: Union[int
         state.setReg(arg1, out32)
         state.setALUState(programState.StatusRegister(n, z, state.status.C, state.status.V))
 
-        return state, None
+        return state, err
     return nodes.InstructionNode(section, line, run)
 
 
