@@ -83,12 +83,16 @@ def decodeExtend(tokenList: List[tokens.Token], section: nodes.Node.Section, sig
                     if signed:
                         if (value & 0b1000_0000_0000_0000) == 0b1000_0000_0000_0000:
                             value |= 0xFFFF_0000  # Set upper half-word when sign bit is set
+                        else:
+                            value &= 0xFFFF
                     else:
                         value &= 0xFFFF
                 else:
                     if signed:
                         if (value & 0b1000_0000) == 0b1000_0000:
                             value |= 0xFFFF_FF00  # Set upper three bytes when sign bit is set
+                        else:
+                            value &= 0xFF
                     else:
                         value &= 0xFF
 

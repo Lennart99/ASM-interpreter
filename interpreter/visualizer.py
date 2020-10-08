@@ -136,6 +136,7 @@ class TextPanel(wx.Panel):
 
         # Event handler for margin click
         self.textBox.Bind(stc.EVT_STC_MARGINCLICK, self.OnMarginClick)
+        self.textBox.Bind(wx.EVT_KEY_DOWN, self.OnKeyPressed)
 
         # setting the style
         self.textBox.StyleSetSpec(stc.STC_STYLE_DEFAULT, f"face:{defaultFont},size:{textSize}")
@@ -145,6 +146,15 @@ class TextPanel(wx.Panel):
         sizer = wx.GridSizer(rows=1, cols=1, vgap=0, hgap=0)
         sizer.Add(self.textBox, 0, wx.EXPAND)
         self.SetSizer(sizer)
+
+    # Char event
+    def OnKeyPressed(self, e):
+        keycode = e.GetKeyCode()
+        # overwrite the return keys to prevent double newlines
+        if keycode in [wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER]:
+            self.textBox.WriteText('\n')
+        else:
+            e.Skip()
 
     # Handles when the margin is clicked (folding)
     def OnMarginClick(self, e):
@@ -191,7 +201,7 @@ class RedirectText:
             return text
 
     def write(self, string):
-        wx.PostEvent(frame, UpdateGUIEvent(lambda: self.out.WriteText(self.stripColor(string))))
+        wx.PostEvent(frame, UpdateGUIEvent(lambda: [self.out.SetInsertionPointEnd(), self.out.WriteText(self.stripColor(string))]))
         self.stdout.write(string)
         time.sleep(0.001)
 
@@ -333,7 +343,7 @@ class MainWindow(wx.Frame):
         self.resetTools()
 
         # Set up event handler for UpdateLineEvent
-        self.Connect(-1, -1, EVT_UPDATE_GUI_ID, self.onGUIUpdate)
+        self.Connect(-1, -1, EVT_UPDATE_GUI_ID, lambda e: e.func())
 
         # run variables
         self.runThread: Optional[threading.Thread] = None
@@ -651,11 +661,6 @@ class MainWindow(wx.Frame):
             self.runThread = threading.Thread(target=run)
             self.runThread.setDaemon(True)
             self.runThread.start()
-
-    # Event handler for UpdateLineEvent
-    # This event is used to update the current line marking from within the run thread, as the marking can only be updated from the main thread
-    def onGUIUpdate(self, e: UpdateGUIEvent):
-        e.func()
 
 
 app = wx.App(False)
