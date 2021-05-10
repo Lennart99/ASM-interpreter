@@ -25,7 +25,7 @@ def generateStacktrace(state: programState.ProgramState, error: programState.Run
     sp: int = state.getReg("SP")[0]
     stackSize = state.getLabelAddress("__STACKSIZE")
     stack: List[nodes.Node] = state.memory[sp >> 2:stackSize >> 2]
-    callbacks = list(map(lambda n: generateStacktraceElement(state, n.value, fileName, lines), filter(lambda x: isinstance(x, nodes.DataNode) and x.source == "LR", stack)))
+    callbacks = list(map(lambda n: generateStacktraceElement(state, n.value, fileName, lines), filter(lambda x: isinstance(x, nodes.DataNode) and x.source == "LR", stack)))[:-1]
 
     # Generate the error
     res = f"\033[31m"  # Red color
@@ -37,6 +37,9 @@ def generateStacktrace(state: programState.ProgramState, error: programState.Run
         res += reduce(lambda a, b: a + "\n" + b, callbacks) + '\n'
     res += error.message + '\n'
     return res + f"\033[0m"  # Normal color
+
+
+warningNodes: List[nodes.InstructionNode] = []
 
 
 # executeInstruction:: InstructionNode -> ProgramState -> String -> [String] -> ProgramState, bool
@@ -52,7 +55,9 @@ def executeInstruction(node: nodes.InstructionNode, state: programState.ProgramS
                     print(generateStacktrace(state, err, fileName, lines))
                     return state, False
                 elif err.errorType == programState.RunError.ErrorType.Warning:
-                    print(generateStacktrace(state, err, fileName, lines))
+                    if node not in warningNodes:
+                        print(generateStacktrace(state, err, fileName, lines))
+                        warningNodes.append(node)
                 elif isinstance(err, programState.StopProgram):
                     return state, False
         # Set a flag in the ProgramState when a subroutine returned. This way the stacktrace generator knows to not print a stacktrace element for the link register
