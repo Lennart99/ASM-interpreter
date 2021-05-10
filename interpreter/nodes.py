@@ -28,8 +28,8 @@ class DataNode(Node):
         self.source = source
 
     def __str__(self) -> str:
-        return "{}({})".\
-            format(type(self).__name__, hex(self.value))
+        return "{}({}, {})".\
+            format(type(self).__name__, hex(self.value), self.source)
 
 
 class InstructionNode(Node):

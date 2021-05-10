@@ -23,7 +23,8 @@ class Instruction(Token):
 
 
 class Register(Token):
-    pass
+    def __init__(self, contents: str, idx: int, line: int):
+        super().__init__(contents.upper(), idx, line)
 
 
 class Label(Token):
